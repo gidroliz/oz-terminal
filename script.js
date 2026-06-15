@@ -80,7 +80,7 @@ const CFG = {
   HACK_MS: 2500,
   TICK_MS: 50,
   RED_LATEST: 85,
-  INIT_PINS: 2,
+  INIT_PINS: 1,
 };
 
 const LEVELS = [
