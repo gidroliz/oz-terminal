@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OZ INDUSTRIES COMPATIBLE TERMINAL v36.0</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="modal-overlay visible" id="startOverlay">
+  <div class="modal-box" style="border-color: var(--green-bright); box-shadow: 0 0 30px var(--glow-green);">
+    <h2 style="color: var(--green-bright); text-shadow: 0 0 8px var(--green-bright);">OZ INDUSTRIES (TM) // ТЕРМИНАЛ СВЯЗИ</h2>
+    <div class="modal-question-text" style="color: #e5ffcc; border-color: var(--green-dark); background: rgba(17,102,17,0.05); font-size: 0.8rem; line-height: 1.5;">
+      ВНИМАНИЕ: Обнаружена блокировка центрального ядра данных.<br>
+      Инициализирована стандартная утилита обхода протоколов шифрования.<br><br>
+      
+      <strong>ИНСТРУКЦИЯ ПО СИНХРОНИЗАЦИИ ЯДРА:</strong><br><br>
+      1. <strong>Поиск точки доступа:</strong> Изменяйте вектор частоты, чтобы нащупать уязвимый сектор в коде брандмауэра.<br><br>
+      2. <strong>Подача дешифрующего импульса:</strong> Нажмите и <strong>УДЕРЖИВАЙТЕ</strong> кнопку «ПОДАТЬ НАПРЯЖЕНИЕ», чтобы начать процесс взлома текущей матрицы данных.<br><br>
+      3. <strong>Угроза блокировки:</strong> Если защитная система зафиксирует перегрузку шины, терминал начнет сильно вибрировать, а индикатор загорится красным. <strong>Немедленно отпустите кнопку!</strong> В противном случае текущий <strong>токен синхронизации</strong> выгорит и будет заблокирован.<br><br>
+      4. <strong>Запрос резервных токенов:</strong> Если все доступные токены будут уничтожены, используйте «ЗАПРОС РЕЗЕРВА», чтобы обойти систему идентификации, ответив на контрольный вопрос администратора.
+    </div>
+    <button class="modal-continue-btn" id="startBtn" style="display: block; border-color: var(--green-bright); color: var(--green-bright); text-shadow: 0 0 6px var(--green-bright);">ИНИЦИИРОВАТЬ ОБХОД ЗАЩИТЫ</button>
+  </div>
+</div><div class="pipboy">
+  <div class="screen">
+
+    <div class="status-bar">
+      <span>⚙️ OZ ST-3000</span>
+      <span class="blink">● ONLINE</span>
+      <span>Slamert v36.0</span>
+    </div>
+
+    <div class="lock-title" id="levelTitle">ЗАГРУЗКА ДАННЫХ...</div>
+
+    <div class="level-indicator">
+      <div class="level-badge active" id="badge0">МАТРИЦА 1</div>
+      <div class="level-badge locked"  id="badge1">МАТРИЦА 2</div>
+      <div class="level-badge locked"  id="badge2">МАТРИЦА 3</div>
+    </div>
+
+    <div class="lock-area">
+      <div class="lock-canvas-wrap">
+        <canvas id="lockCanvas" width="220" height="220"></canvas>
+      </div>
+      <div class="hint-text">[ ЗАЖМИ И ВРАЩАЙ ]</div>
+    </div>
+
+    <div class="action-panel">
+      <div class="lamp" id="lamp"></div>
+      <button class="hack-btn" id="hackBtn">
+        <div class="hack-btn-bar" id="hackBar"></div>
+        <span id="hackBtnText">ПОДАТЬ НАПРЯЖЕНИЕ (УДЕРЖД.)</span>
+      </button>
+    </div>
+
+    <div class="inventory">
+      <span class="inv-label">ЗАПАСНЫЕ ТОКЕНЫ:</span>
+      <span class="bobby-count" id="bobbyCount">2</span>
+      <button class="get-pin-btn" id="getPinBtn">+ ЗАПРОС РЕЗЕРВА</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-overlay" id="questionOverlay">
+  <div class="modal-box">
+    <h2 id="modalTitle">МЕХАНИЧЕСКИЙ ОТКАЗ</h2>
+    <div class="modal-question-text" id="modalQ">Инициализация проверочного алгоритма...</div>
+    <div class="modal-options" id="modalOpts"></div>
+    <div class="modal-result" id="modalResult"></div>
+    <button class="modal-continue-btn" id="modalContBtn">СИНХРОНИЗИРОВАТЬ СИСТЕМУ</button>
+  </div>
+</div>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-box">
+    <h2>ДОСТУП РАЗРЕШЕН</h2>
+    <div class="win-msg">
+      КРИТИЧЕСКИЕ СЕКТОРЫ ВЗЛОМАНЫ УСПЕШНО!<br>
+      С ДНЁМ РОЖДЕНИЯ, АДМИНИСТРАТОР ПУСТОШИ!
+    </div>
+    <p class="win-sub">ВЫЖИВАНИЕ ОБЕСПЕЧЕНО // VAULT-TEC CORP.</p>
+  </div>
+</div>
+
+<script src="questions.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
