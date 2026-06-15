@@ -11,7 +11,7 @@
   <div class="modal-box" style="border-color: var(--green-bright); box-shadow: 0 0 30px var(--glow-green);">
     <h2 style="color: var(--green-bright); text-shadow: 0 0 8px var(--green-bright);">OZ INDUSTRIES (TM) // ТЕРМИНАЛ СВЯЗИ</h2>
     <div class="modal-question-text" style="color: #e5ffcc; border-color: var(--green-dark); background: rgba(17,102,17,0.05); font-size: 0.8rem; line-height: 1.5;">
-      ВНИМАНИЕ: Обнаружена блокировка центрального ядра данных.<br>
+      ВНИМАНИЕ: Обнаружена блокировка central'ного ядра данных.<br>
       Инициализирована стандартная утилита обхода протоколов шифрования.<br><br>
       
       <strong>ИНСТРУКЦИЯ ПО СИНХРОНИЗАЦИИ ЯДРА:</strong><br><br>
@@ -22,7 +22,9 @@
     </div>
     <button class="modal-continue-btn" id="startBtn" style="display: block; border-color: var(--green-bright); color: var(--green-bright); text-shadow: 0 0 6px var(--green-bright);">ИНИЦИИРОВАТЬ ОБХОД ЗАЩИТЫ</button>
   </div>
-</div><div class="pipboy">
+</div>
+
+<div class="pipboy">
   <div class="screen">
 
     <div class="status-bar">
@@ -55,8 +57,10 @@
     </div>
 
     <div class="inventory">
-      <span class="inv-label">ЗАПАСНЫЕ ТОКЕНЫ:</span>
-      <span class="bobby-count" id="bobbyCount">2</span>
+      <div class="inv-left">
+        <span class="inv-label">ЗАПАСНЫЕ ТОКЕНЫ:</span>
+        <span class="bobby-count" id="bobbyCount">2</span>
+      </div>
       <button class="get-pin-btn" id="getPinBtn">+ ЗАПРОС РЕЗЕРВА</button>
     </div>
 
