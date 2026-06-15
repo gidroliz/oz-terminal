@@ -588,3 +588,138 @@ canvas.fail-glow { box-shadow: 0 0 30px var(--red-bright), inset 0 0 20px rgba(0
   background: rgba(51, 255, 51, 0.1);
   box-shadow: 0 0 10px var(--glow-green);
 }
+
+/* --- ЭФФЕКТЫ ДЛЯ ЭКРАНА ПОБЕДЫ --- */
+
+/* 1. Построчное появление текста (Line-by-line Terminal Boot) */
+.line-reveal {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: terminalPrint 0.4s ease-out forwards;
+  margin: 10px 0;
+}
+
+@keyframes terminalPrint {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Задержки для каждой строчки, чтобы они шли друг за другом */
+.delay-1 { animation-delay: 0.3s; }
+.delay-2 { animation-delay: 1.2s; }
+.delay-3 { animation-delay: 2.2s; }
+.delay-4 { animation-delay: 3.5s; }
+.delay-5 { animation-delay: 4.8s; }
+.delay-6 { animation-delay: 5.8s; }
+
+/* Подсветка поздравления с ДР */
+.highlight-birthday {
+  color: #fff;
+  font-weight: bold;
+  text-shadow: 0 0 10px var(--green-bright), 0 0 20px var(--green-dark);
+}
+
+.subtitle-code {
+  font-size: 0.75rem;
+  color: var(--amber-dim);
+  letter-spacing: 1px;
+  margin-top: 20px !important;
+}
+
+/* 2. Кастомный контейнер для кодовой фразы */
+.secret-phrase-box {
+  background: rgba(255, 176, 0, 0.07);
+  border: 2px dashed var(--amber);
+  padding: 14px;
+  border-radius: 6px;
+  margin-top: 5px;
+  box-shadow: 0 0 15px rgba(255, 176, 0, 0.15);
+}
+
+/* 3. Эффект Кибер-Глитча (Янтарный взрыв) */
+.glitch-phrase {
+  position: relative;
+  display: inline-block;
+  color: var(--amber);
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: 2px;
+  font-family: 'VT323', monospace;
+  text-shadow: 0 0 8px var(--amber);
+  animation: glitchPulse 3s infinite;
+}
+
+/* Имитация дрожания текста в стиле старой видеокарты */
+.glitch-phrase::before,
+.glitch-phrase::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #030803;
+  clip: rect(0, 0, 0, 0); 
+}
+
+.glitch-phrase::before {
+  left: 2px;
+  text-shadow: -2px 0 #ff3333;
+  animation: glitchTest 2s infinite linear alternate-reverse;
+}
+
+.glitch-phrase::after {
+  left: -2px;
+  text-shadow: -2px 0 #33ff33;
+  animation: glitchTest2 3s infinite linear alternate-reverse;
+}
+
+@keyframes glitchTest {
+  0% { clip: rect(10px, 9999px, 20px, 0); }
+  10% { clip: rect(30px, 9999px, 40px, 0); }
+  20% { clip: rect(8px, 9999px, 15px, 0); }
+  100% { clip: rect(0, 0, 0, 0); }
+}
+@keyframes glitchTest2 {
+  0% { clip: rect(40px, 9999px, 50px, 0); }
+  15% { clip: rect(12px, 9999px, 80px, 0); }
+  30% { clip: rect(5px, 9999px, 25px, 0); }
+  100% { clip: rect(0, 0, 0, 0); }
+}
+@keyframes glitchPulse {
+  0%, 90%, 100% { transform: scale(1); opacity: 1; }
+  93% { transform: scale(1.04); opacity: 0.9; color: #fff; }
+  95% { transform: scale(0.98); opacity: 0.8; }
+  98% { transform: scale(1.02); opacity: 1; }
+}
+
+/* 4. Задний фон: Матричный цифровой дождь (световой эмбиент) */
+.matrix-rain-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: 
+    linear-gradient(rgba(0,0,0,0.8), rgba(0,5,0,0.85)),
+    repeating-linear-gradient(0deg, rgba(0,255,0,0.03) 0px, rgba(0,255,0,0.03) 2px, transparent 2px, transparent 4px);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+/* Когда оверлей победы активен, плавно включаем фон матрицы */
+.win-overlay.visible .matrix-rain-bg {
+  opacity: 1;
+}
+
+/* Мобильная адаптация для длинной кодовой фразы */
+@media (max-width: 420px) {
+  .glitch-phrase {
+    font-size: 1.15rem;
+    letter-spacing: 1px;
+  }
+  .secret-phrase-box {
+    padding: 10px;
+  }
+}
