@@ -222,3 +222,65 @@ test('терминал-ловушка: скобка-ловушка отнима�
   assert.deepEqual(st, { attempts: 3, traps: 1 });
   await context.close();
 });
+
+// ── Таблица рекордов (сервер api/ работает на поддельной базе в памяти) ──
+const redis = require('../api/_lib/redis');
+
+// Сдвигает начало взлома в прошлое, чтобы быстрое автопрохождение выглядело честным для сервера
+async function backdateRun(page, ms) {
+  await page.waitForFunction(() => !!S.runToken, null, { timeout: 5000 });
+  const token = await page.evaluate(() => S.runToken);
+  const raw = JSON.parse(await redis.call('GET', `run:${token}`));
+  raw.t -= ms;
+  await redis.call('SET', `run:${token}`, JSON.stringify(raw), 'EX', 3600);
+}
+
+test('таблица рекордов: результат отправляется после ввода позывного', async () => {
+  const { page, context, problems } = await openGame();
+  await startMode(page, 'easy');
+  await backdateRun(page, 60000);
+  await page.evaluate(() => { S.elapsed += 20000; }); // время взлома должно быть правдоподобным
+  const total = await page.evaluate(() => S.stages.length);
+  for (let i = 0; i < total; i++) await solveStage(page);
+  await page.waitForSelector('#endNameInput');
+  await page.fill('#endNameInput', 'Тестер');
+  await page.click('#endNameForm button');
+  await page.waitForSelector('.lb-place');
+  assert.match(await page.textContent('.lb-place'), /#1/);
+  await page.click('#endLbOpen');
+  await page.waitForSelector('.lb-row.me');
+  assert.match(await page.textContent('.lb-row.me'), /Тестер/);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('oz.player')).name), 'Тестер');
+  assert.deepEqual(problems, []);
+  await context.close();
+});
+
+test('таблица рекордов: накрученный результат не принимается', async () => {
+  const { page, context } = await openGame();
+  await page.evaluate(() => { PLAYER.name = 'Читер'; savePlayer(); });
+  await startMode(page, 'easy');
+  await page.waitForFunction(() => !!S.runToken);
+  await page.evaluate(() => { S.elapsed += 600000; }); // заявленное время больше реально прошедшего
+  const total = await page.evaluate(() => S.stages.length);
+  for (let i = 0; i < total; i++) await solveStage(page);
+  await page.waitForFunction(() => /не приняла/.test(document.getElementById('lbBox').textContent));
+  await context.close();
+});
+
+test('без сервера игра работает и честно сообщает о недоступности таблицы', async () => {
+  const { server: bare, url: bareUrl } = await startServer({ api: false });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await context.addInitScript(() => { localStorage.setItem('oz.tutorial', 'done'); localStorage.setItem('oz.settings', '{"lang":"ru"}'); });
+  const problems = [];
+  try {
+    const page = await context.newPage();
+    page.on('pageerror', (e) => problems.push(e.message));
+    await page.goto(bareUrl);
+    await page.click('#lbLinkBtn');
+    await page.waitForFunction(() => /недоступна|не подключена/.test(document.getElementById('lbList').textContent), null, { timeout: 8000 });
+    assert.deepEqual(problems, []);
+  } finally {
+    await context.close();
+    bare.close();
+  }
+});

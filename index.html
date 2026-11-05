@@ -84,6 +84,7 @@
 
     <button class="primary-btn" id="continueBtn" hidden>&gt; ПРОДОЛЖИТЬ ВЗЛОМ</button>
     <button class="primary-btn" id="startBtn" data-i18n="start.new">&gt; НОВЫЙ ВЗЛОМ</button>
+    <button class="link-btn" id="lbLinkBtn" data-i18n="start.lbLink">[ ТАБЛИЦА РЕКОРДОВ ]</button>
     <button class="link-btn" id="statsLinkBtn" data-i18n="start.statsLink">[ СТАТИСТИКА И НАСТРОЙКИ ]</button>
   </div>
 </div>
@@ -106,6 +107,7 @@
       <button class="tab" data-tab="stat" role="tab" data-i18n="tab.stat">СТАТ</button>
       <button class="tab" data-tab="inv" role="tab" data-i18n="tab.inv">ИНВ</button>
       <button class="tab" data-tab="data" role="tab" data-i18n="tab.data">ДАННЫЕ</button>
+      <button class="tab" data-tab="top" role="tab" data-i18n="tab.top">ТОП</button>
       <button class="tab" data-tab="cfg" role="tab" data-i18n="tab.cfg">НАСТР</button>
     </nav>
 
@@ -155,6 +157,24 @@
       <section class="pane" data-pane="inv"><div class="pane-scroll" id="invPane"></div></section>
       <!-- ДАННЫЕ -->
       <section class="pane" data-pane="data"><div class="pane-scroll" id="dataPane"></div></section>
+
+      <!-- ТАБЛИЦА РЕКОРДОВ -->
+      <section class="pane" data-pane="top">
+        <div class="pane-scroll">
+          <h3 data-i18n="lb.callsign">ПОЗЫВНОЙ</h3>
+          <form class="callsign" id="callsignForm">
+            <input type="text" id="callsignInput" maxlength="16" autocomplete="nickname" spellcheck="false">
+            <button type="submit" class="chip" data-i18n="lb.save">СОХРАНИТЬ</button>
+          </form>
+          <div class="lb-msg" id="callsignMsg"></div>
+          <h3 data-i18n="lb.title">ТАБЛИЦА РЕКОРДОВ</h3>
+          <div class="lb-modes" id="lbModes"></div>
+          <div class="lb-list" id="lbList"></div>
+          <div class="lb-me" id="lbMe"></div>
+          <button class="link-btn" id="lbRefresh" data-i18n="lb.refresh">[ ОБНОВИТЬ ]</button>
+          <div class="muted setting-note" data-i18n="lb.note"></div>
+        </div>
+      </section>
 
       <!-- НАСТРОЙКИ -->
       <section class="pane" data-pane="cfg">
@@ -256,6 +276,7 @@
     <div class="stats" id="stats"></div>
     <div class="stage-stars" id="stageStars"></div>
     <div class="new-ach" id="newAch"></div>
+    <div class="lb-box" id="lbBox"></div>
     <button class="primary-btn" id="restartBtn" data-i18n="btn.menu">&gt; В МЕНЮ</button>
   </div>
 </div>

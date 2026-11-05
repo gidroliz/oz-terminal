@@ -21,6 +21,6 @@ jobs:
       - name: Установка Chromium
         run: npx playwright install --with-deps chromium
       - name: Проверка синтаксиса
-        run: for f in ../*.js; do node --check "$f"; done
+        run: for f in ../*.js ../api/*.js ../api/_lib/*.js; do node --check "$f"; done
       - name: Тесты
         run: npm test

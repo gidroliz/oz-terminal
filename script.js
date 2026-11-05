@@ -149,6 +149,7 @@ const S = {
   elapsed: 0,
   timeLeft: 0,
   st: { t0: 0, broken: 0, wear: 0, jams: 0, lockouts: 0 }, // показатели текущего этапа
+  runToken: null, // жетон сервера для таблицы рекордов
   stats: { broken: 0, right: 0, wrong: 0, lockouts: 0, scans: 0 },
   journal: [],
 };
@@ -1373,7 +1374,7 @@ modalCont.addEventListener('click', closeQuestion);
 // ═══════════════════════════════════════════════
 const RUN_FIELDS = ['diff', 'stages', 'stage', 'done', 'stars', 'cleared', 'picks', 'scanners', 'scan', 'ups', 'pendingUpgrade',
   'wear', 'angle', 'target', 'targetBase', 'floatPhase', 'pinsLeft', 'term', 'termLockLeft', 'usedQs', 'cooldownLeft',
-  'elapsed', 'timeLeft', 'st', 'stats'];
+  'elapsed', 'timeLeft', 'st', 'stats', 'runToken'];
 
 function saveRun() {
   if (!S.started || S.finished) return;
@@ -1422,6 +1423,7 @@ function applyRun(r) {
   S.st = Object.assign({ t0: S.elapsed, broken: 0, wear: 0, jams: 0, lockouts: 0 }, r.st);
   S.stats = Object.assign({ broken: 0, right: 0, wrong: 0, lockouts: 0, scans: 0 }, r.stats);
   S.journal = r.journal || [];
+  S.runToken = r.runToken || null;
   S.advancing = false;
   ensureStages(S.stage + 2);
   updatePicks(false);
@@ -1460,7 +1462,7 @@ function resetGame() {
     picks: m.picks, scanners: m.scanners, scan: null, ups: {}, pendingUpgrade: false,
     wear: 0, angle: 0, rot: 0, turning: false, jammed: false, advancing: false, flash: 0,
     term: null, termLockLeft: 0, cooldownLeft: 0, elapsed: 0, timeLeft: m.timeLimit || 0,
-    stats: { broken: 0, right: 0, wrong: 0, lockouts: 0, scans: 0 }, journal: [],
+    stats: { broken: 0, right: 0, wrong: 0, lockouts: 0, scans: 0 }, journal: [], runToken: null,
   });
   ensureStages(4);
   enterStage(true);
@@ -1522,6 +1524,7 @@ function startNew() {
   log(t('log.lockStage', { name: stageLabel(0), tol: tol() }));
   tutorialForStage();
   saveRun();
+  requestRunToken();
 }
 
 function continueRun() {
@@ -1645,6 +1648,7 @@ function endGame(win) {
 
   winOverlay.classList.add('visible');
   startRain(lost);
+  lbAfterGame(win || m.endless, starsGot);
 }
 
 startBtn.addEventListener('click', startNew);
@@ -1654,6 +1658,12 @@ restartBtn.addEventListener('click', () => {
   winOverlay.classList.remove('visible');
   stopRain();
   showStartScreen();
+});
+$('lbLinkBtn').addEventListener('click', () => {
+  AudioEngine.init();
+  Sound.click();
+  startOverlay.classList.remove('visible');
+  switchTab('top');
 });
 $('statsLinkBtn').addEventListener('click', () => {
   AudioEngine.init();
@@ -1764,6 +1774,7 @@ function setLanguage(lang) {
   if (S.tab === 'stat') renderStat();
   if (S.tab === 'inv') renderInv();
   if (S.tab === 'data') renderData();
+  if (S.tab === 'top') renderTop();
 }
 
 document.querySelectorAll('.lang-btn').forEach((b) => b.addEventListener('click', () => {
@@ -1820,6 +1831,7 @@ function switchTab(tab, silent) {
   if (tab === 'inv') renderInv();
   if (tab === 'data') renderData();
   if (tab === 'cfg') syncSettingsUI();
+  if (tab === 'top') renderTop();
   if (tab === 'hack' && !silent) {
     lastT = performance.now();
     if (!S.started && !S.finished) showStartScreen();
@@ -1965,6 +1977,189 @@ function renderData() {
     renderData();
   });
 }
+
+
+// ═══════════════════════════════════════════════
+// ТАБЛИЦА РЕКОРДОВ (сервер: api/)
+// ═══════════════════════════════════════════════
+const PLAYER_KEY = 'oz.player';
+const PLAYER = (() => {
+  const p = loadJSON(PLAYER_KEY, {});
+  if (!p.id || !/^[a-z0-9]{16,40}$/.test(p.id)) {
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    p.id = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  p.name = p.name || '';
+  localStorage.setItem(PLAYER_KEY, JSON.stringify(p));
+  return p;
+})();
+function savePlayer() { localStorage.setItem(PLAYER_KEY, JSON.stringify(PLAYER)); }
+
+const LB = { mode: null, data: null, error: null, loading: false, pending: null };
+
+async function api(path, body) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const opts = body
+      ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctrl.signal }
+      : { signal: ctrl.signal };
+    const r = await fetch('api/' + path, opts);
+    return await r.json().catch(() => ({ ok: false, error: 'server' }));
+  } catch (e) {
+    return { ok: false, error: 'offline' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const errText = (code) => t(I18N.ru['err.' + code] ? 'err.' + code : 'err.generic');
+
+async function requestRunToken() {
+  const diff = S.diff;
+  const r = await api('run', { mode: diff });
+  // Игрок мог успеть выйти в меню и начать другой взлом
+  if (r.ok && S.started && S.diff === diff && !S.runToken) {
+    S.runToken = r.token;
+    saveRun();
+  }
+}
+
+function lbBox(html) { $('lbBox').innerHTML = html; }
+
+function lbAfterGame(counts, stars) {
+  lbBox('');
+  if (!counts) return;
+  if (!S.runToken) { lbBox(`<div class="muted">${t('end.lbUnavailable')}</div>`); return; }
+  LB.pending = {
+    token: S.runToken, mode: S.diff,
+    time: Math.round(S.elapsed), stages: S.cleared, broken: S.stats.broken, stars,
+  };
+  S.runToken = null;
+  if (PLAYER.name) submitPending();
+  else askName();
+}
+
+function askName() {
+  lbBox(`
+    <div class="lb-ask">${t('end.lbNeedName')}</div>
+    <form class="callsign" id="endNameForm">
+      <input type="text" id="endNameInput" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${esc(t('lb.placeholder'))}">
+      <button type="submit" class="chip">${t('end.lbSend')}</button>
+    </form>
+    <div class="lb-msg" id="endNameMsg"></div>`);
+  $('endNameForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = $('endNameInput').value.replace(/\s+/g, ' ').trim();
+    const err = localNameError(name);
+    if (err) { $('endNameMsg').textContent = t('err.' + err); return; }
+    PLAYER.name = name;
+    savePlayer();
+    submitPending();
+  });
+}
+
+function localNameError(name) {
+  if (name.length < 2 || name.length > 16) return 'name_length';
+  if (!/^[\p{L}\p{N} _.\-]+$/u.test(name)) return 'name_chars';
+  return null;
+}
+
+async function submitPending() {
+  if (!LB.pending) return;
+  lbBox(`<div class="muted">${t('end.lbSending')}</div>`);
+  const r = await api('score', Object.assign({ id: PLAYER.id, name: PLAYER.name }, LB.pending));
+  if (r.ok) {
+    LB.pending = null;
+    LB.data = null;
+    lbBox(`
+      <div class="lb-place">${t('end.lbPlace', { rank: r.rank, total: r.total })}</div>
+      <div class="muted">${t(r.best ? 'end.lbBest' : 'end.lbNotBest')}</div>
+      <button class="link-btn" id="endLbOpen">${t('end.lbOpen')}</button>`);
+    log(t('log.lbPlace', { rank: r.rank, total: r.total }), 'good');
+    $('endLbOpen').addEventListener('click', openLbFromEnd);
+    return;
+  }
+  if (r.error && r.error.startsWith('name_')) { PLAYER.name = ''; savePlayer(); askName(); $('endNameMsg').textContent = t('err.' + r.error); return; }
+  if (!r.error || ['not_configured', 'offline', 'server'].includes(r.error)) { LB.pending = null; lbBox(`<div class="muted">${t('end.lbUnavailable')}</div>`); return; }
+  LB.pending = null;
+  lbBox(`<div class="muted">${t('end.lbRejected', { reason: errText(r.error) })}</div>`);
+}
+
+function openLbFromEnd() {
+  Sound.click();
+  LB.mode = S.diff;
+  winOverlay.classList.remove('visible');
+  stopRain();
+  showStartScreen();
+  startOverlay.classList.remove('visible');
+  switchTab('top');
+}
+
+function lbResult(row, mode) {
+  if (DIFFS[mode].endless) return `${t('rec.stages', { n: row.stages })} <small>${fmtTime(row.time)}</small>`;
+  return fmtTime(row.time);
+}
+
+async function renderTop() {
+  if (!LB.mode) LB.mode = chosenDiff;
+  $('callsignInput').placeholder = t('lb.placeholder');
+  if (document.activeElement !== $('callsignInput')) $('callsignInput').value = PLAYER.name;
+  $('lbModes').innerHTML = Object.keys(DIFFS).map((id) =>
+    `<button class="chip lb-mode${id === LB.mode ? ' active' : ''}" data-mode="${id}">${modeName(id)}</button>`).join('');
+  $('lbModes').querySelectorAll('.lb-mode').forEach((b) => b.addEventListener('click', () => {
+    Sound.key();
+    LB.mode = b.dataset.mode;
+    LB.data = null;
+    renderTop();
+  }));
+  const mode = LB.mode;
+  if (!LB.data || LB.data.mode !== mode) {
+    $('lbList').innerHTML = `<div class="muted">${t('lb.loading')}</div>`;
+    $('lbMe').innerHTML = '';
+    if (LB.loading) return;
+    LB.loading = true;
+    const r = await api(`leaderboard?mode=${mode}&id=${PLAYER.id}`);
+    LB.loading = false;
+    if (LB.mode !== mode) { renderTop(); return; }
+    LB.data = r.ok && Array.isArray(r.top) ? r : { mode, error: r.error || 'server' };
+  }
+  const d = LB.data;
+  if (d.error) {
+    $('lbList').innerHTML = `<div class="muted">${t(d.error === 'not_configured' ? 'lb.notConfigured' : 'lb.offline')}</div>`;
+    $('lbMe').innerHTML = '';
+    return;
+  }
+  if (!d.top.length) {
+    $('lbList').innerHTML = `<div class="muted">${t('lb.empty')}</div>`;
+  } else {
+    $('lbList').innerHTML = d.top.map((row) => `
+      <div class="lb-row${row.me ? ' me' : ''}${row.rank <= 3 ? ' podium' : ''}">
+        <span class="lb-rank">${row.rank}</span>
+        <span class="lb-name">${esc(row.name)}${row.me ? ` <i>${t('lb.you')}</i>` : ''}</span>
+        <b class="lb-res">${lbResult(row, mode)}</b>
+        <span class="lb-extra">✕${row.broken} ★${row.stars}</span>
+      </div>`).join('');
+  }
+  $('lbMe').innerHTML = `${d.me ? t('lb.yourPlace', { rank: d.me.rank, total: d.total }) : t('lb.notRanked')}<br><span class="muted">${t('lb.total', { n: d.total })}</span>`;
+}
+
+$('lbRefresh').addEventListener('click', () => { Sound.click(); LB.data = null; renderTop(); });
+$('callsignForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('callsignInput').value.replace(/\s+/g, ' ').trim();
+  const err = localNameError(name);
+  if (err) { $('callsignMsg').textContent = t('err.' + err); return; }
+  const r = await api('name', { id: PLAYER.id, name });
+  if (!r.ok && r.error && r.error.startsWith('name_')) { $('callsignMsg').textContent = t('err.' + r.error); return; }
+  PLAYER.name = name;
+  savePlayer();
+  Sound.good();
+  $('callsignMsg').textContent = t('lb.saved');
+  LB.data = null;
+  renderTop();
+});
 
 // ═══════════════════════════════════════════════
 // ЭФФЕКТЫ
