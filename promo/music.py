@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Саундтрек для тизера OZ-TERMINAL: оригинальная музыка + звуки игры по журналу событий.
 
-Использование: music.py events.json out.wav --trim 0.9 --dur 17.4 --offset -0.06
+Использование: music.py events.json out.wav --trim 2.0 --dur 26.04 --offset -0.06
 """
 import argparse
 import json
@@ -290,18 +290,39 @@ def build(events, dur, trim, offset):
     bus.add(impact(), B1, 0.32)
     chord = [57, 61, 64, 69, 73]  # A мажор
     padc = sum(saw(midi(n), C) + saw(midi(n) * 1.004, C) for n in chord) / 10
-    padc = lp(padc, 2500) * adsr(C, 0.05, 0.6, 0.6, C * 0.6) * 0.16
+    padc = lp(padc, 2500) * adsr(C, 0.05, 0.6, 0.6, C * 0.6) * 0.10
     bus.add(padc, B1, 1.0)
-    bassc = sine(midi(33), C) * adsr(C, 0.02, 0.5, 0.7, C * 0.6) * 0.35
+    bassc = sine(midi(33), C) * adsr(C, 0.02, 0.5, 0.7, C * 0.6) * 0.24
     bus.add(bassc, B1)
     for i, n in enumerate([69, 73, 76, 81, 85, 88]):
         bell = (sine(midi(n), 1.6) + 0.4 * sine(midi(n) * 2.01, 1.6)) * env_exp(1.6, 0.5) * 0.06
         bus.add(bell, B1 + 0.15 + i * 0.14, 1.0, -0.5 + i * 0.2)
 
+    # ── Пульс до призыва и акцент на призыве ──
+    t_cta = next((t for n, t in ev if n == 'cta'), None)
+    if t_cta is not None:
+        k = B1 + 1.0
+        while k < t_cta - 0.05:
+            bus.add(kick(0.3), k)
+            bus.add(hat(), k + 0.25, 0.1, 0.3)
+            k += 0.5
+        bus.add(impact(), t_cta, 0.32)
+        Ccta = dur - t_cta
+        hi = [69, 73, 76, 81]  # A мажор выше
+        padh = sum(saw(midi(n), Ccta) + saw(midi(n) * 1.005, Ccta) for n in hi) / 8
+        padh = lp(padh, 3200) * adsr(Ccta, 0.4, 0.5, 0.8, Ccta * 0.5) * 0.17
+        bus.add(padh, t_cta, 1.0)
+        bus.add(sine(midi(45), Ccta) * adsr(Ccta, 0.05, 0.6, 0.7, Ccta * 0.5) * 0.28, t_cta)
+        for i, n in enumerate([81, 85, 88, 93, 88, 85, 81]):
+            bell = (sine(midi(n), 1.4) + 0.4 * sine(midi(n) * 2.01, 1.4)) * env_exp(1.4, 0.45) * 0.055
+            bus.add(bell, t_cta + 0.2 + i * 0.16, 1.0, -0.6 + i * 0.2)
+
     # ── Звуки игры ──
     gens = {'scratch': sfx_scratch, 'tick': sfx_tick, 'type': sfx_type, 'key': sfx_key,
-            'unlock': sfx_unlock, 'denied': sfx_denied, 'granted': sfx_granted}
-    gains = {'scratch': 0.5, 'tick': 0.8, 'type': 0.45, 'key': 0.5, 'unlock': 0.5, 'denied': 0.9, 'granted': 0.9}
+            'unlock': sfx_unlock, 'denied': sfx_denied, 'granted': sfx_granted,
+            'caption': sfx_type, 'click': lambda: sine(950, 0.04) * env_exp(0.04, 0.01) * 0.4}
+    gains = {'scratch': 0.5, 'tick': 0.8, 'type': 0.45, 'key': 0.5, 'unlock': 0.5, 'denied': 0.9, 'granted': 0.9,
+             'caption': 0.38, 'click': 0.8}
     for n, tt in ev:
         if n in gens and 0 <= tt < dur:
             sfx.add(gens[n](), tt, gains[n], rng.uniform(-0.15, 0.15))
