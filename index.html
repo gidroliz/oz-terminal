@@ -2,100 +2,109 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>OZ INDUSTRIES COMPATIBLE TERMINAL v36.0</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#020502">
+  <meta name="description" content="Ретро-терминал взлома замков в стиле постапокалипсиса. Найди сладкую точку, проверни цилиндр и не сломай отмычку.">
+  <meta property="og:title" content="OZ-TERMINAL // Взлом замка">
+  <meta property="og:description" content="Найди сладкую точку, проверни цилиндр и не сломай отмычку.">
+  <title>OZ-TERMINAL // Взлом замка</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='28' fill='%23040a04' stroke='%2333ff33' stroke-width='4'/><rect x='29' y='14' width='6' height='26' rx='3' fill='%2333ff33'/><circle cx='32' cy='44' r='5' fill='%2333ff33'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<!-- ═════════ СТАРТОВЫЙ ЭКРАН ═════════ -->
 <div class="modal-overlay visible" id="startOverlay">
-  <div class="modal-box" style="border-color: var(--green-bright); box-shadow: 0 0 30px var(--glow-green);">
-    <h2 style="color: var(--green-bright); text-shadow: 0 0 8px var(--green-bright);">OZ INDUSTRIES (TM) // ТЕРМИНАЛ СВЯЗИ</h2>
-    <div class="modal-question-text" style="color: #e5ffcc; border-color: var(--green-dark); background: rgba(17,102,17,0.05); font-size: 0.8rem; line-height: 1.5;">
-      ВНИМАНИЕ: Обнаружена блокировка central'ного ядра данных.<br>
-      Инициализирована стандартная утилита обхода протоколов шифрования.<br><br>
-      
-      <strong>ИНСТРУКЦИЯ ПО СИНХРОНИЗАЦИИ ЯДРА:</strong><br><br>
-      1. <strong>Поиск точки доступа:</strong> Изменяйте вектор частоты, чтобы нащупать уязвимый сектор в коде брандмауэра.<br><br>
-      2. <strong>Подача дешифрующего импульса:</strong> Нажмите и <strong>УДЕРЖИВАЙТЕ</strong> кнопку «ПОДАТЬ НАПРЯЖЕНИЕ», чтобы начать процесс взлома текущей матрицы данных.<br><br>
-      3. <strong>Угроза блокировки:</strong> Если защитная система зафиксирует перегрузку шины, терминал начнет сильно вибрировать, а индикатор загорится красным. <strong>Немедленно отпустите кнопку!</strong> В противном случае текущий <strong>токен синхронизации</strong> выгорит и будет заблокирован.<br><br>
-      4. <strong>Запрос резервных токенов:</strong> Если все доступные токены будут уничтожены, используйте «ЗАПРОС РЕЗЕРВА», чтобы обойти систему идентификации, ответив на контрольный вопрос администратора.
+  <div class="modal-box modal-green">
+    <h2>OZ INDUSTRIES™ // ТЕРМИНАЛ ВЗЛОМА</h2>
+    <div class="boot-log" id="bootLog" aria-hidden="true"></div>
+
+    <div class="howto">
+      <div class="howto-row"><span class="howto-key">1</span><span><b>Двигай отмычку</b> — тяни по замку влево/вправо (или ← →).</span></div>
+      <div class="howto-row"><span class="howto-key">2</span><span><b>Зажми «ПРОВЕРНУТЬ»</b> (или пробел). Чем ближе отмычка к сладкой точке, тем дальше проворачивается цилиндр.</span></div>
+      <div class="howto-row"><span class="howto-key">3</span><span>Замок <b>заклинило</b> — экран трясётся, лампа красная? <b>Отпусти!</b> Отмычка изнашивается и может сломаться.</span></div>
+      <div class="howto-row"><span class="howto-key">4</span><span>Отмычки кончились — запроси резерв и ответь на контрольный вопрос.</span></div>
     </div>
-    <button class="modal-continue-btn" id="startBtn" style="display: block; border-color: var(--green-bright); color: var(--green-bright); text-shadow: 0 0 6px var(--green-bright);">ИНИЦИИРОВАТЬ ОБХОД ЗАЩИТЫ</button>
+
+    <div class="difficulty" role="radiogroup" aria-label="Сложность">
+      <span class="difficulty-label">РЕЖИМ:</span>
+      <button class="diff-btn" data-diff="easy" role="radio">НОВИЧОК</button>
+      <button class="diff-btn active" data-diff="normal" role="radio">ВЗЛОМЩИК</button>
+      <button class="diff-btn" data-diff="hard" role="radio">МАСТЕР</button>
+    </div>
+
+    <div class="best-line" id="bestLine"></div>
+
+    <button class="primary-btn" id="startBtn">&gt; ИНИЦИИРОВАТЬ ВЗЛОМ</button>
   </div>
 </div>
 
+<!-- ═════════ ТЕРМИНАЛ ═════════ -->
 <div class="pipboy">
-  <div class="screen">
+  <div class="screen" id="screen">
 
     <div class="status-bar">
-      <span>⚙️ OZ ST-3000</span>
-      <span class="blink">● ONLINE</span>
-      <span>Slamert v36.0</span>
+      <span>OZ ST-3000</span>
+      <span class="status-time" id="timer">00:00</span>
+      <button class="sound-btn" id="soundBtn" aria-label="Звук" title="Звук (M)">♪ ВКЛ</button>
     </div>
 
     <div class="lock-title" id="levelTitle">ЗАГРУЗКА ДАННЫХ...</div>
 
-    <div class="level-indicator">
-      <div class="level-badge active" id="badge0">МАТРИЦА 1</div>
-      <div class="level-badge locked"  id="badge1">МАТРИЦА 2</div>
-      <div class="level-badge locked"  id="badge2">МАТРИЦА 3</div>
-    </div>
+    <div class="level-indicator" id="levelIndicator"></div>
 
     <div class="lock-area">
       <div class="lock-canvas-wrap">
-        <canvas id="lockCanvas" width="220" height="220"></canvas>
+        <canvas id="lockCanvas" width="240" height="240" aria-label="Замок. Тяните влево и вправо, чтобы двигать отмычку."></canvas>
       </div>
-      <div class="hint-text">[ ЗАЖМИ И ВРАЩАЙ ]</div>
+      <div class="hint-text" id="hintText">[ ТЯНИ ВЛЕВО / ВПРАВО ]</div>
     </div>
 
     <div class="action-panel">
       <div class="lamp" id="lamp"></div>
       <button class="hack-btn" id="hackBtn">
         <div class="hack-btn-bar" id="hackBar"></div>
-        <span id="hackBtnText">ПОДАТЬ НАПРЯЖЕНИЕ (УДЕРЖД.)</span>
+        <span id="hackBtnText">ПРОВЕРНУТЬ (УДЕРЖ.)</span>
       </button>
     </div>
 
     <div class="inventory">
       <div class="inv-left">
-        <span class="inv-label">ЗАПАСНЫЕ ТОКЕНЫ:</span>
-        <span class="bobby-count" id="bobbyCount">2</span>
+        <span class="inv-label">ОТМЫЧКИ</span>
+        <span class="pick-count" id="pickCount">0</span>
+        <div class="wear" title="Состояние текущей отмычки">
+          <div class="wear-bar" id="wearBar"></div>
+        </div>
       </div>
-      <button class="get-pin-btn" id="getPinBtn">+ ЗАПРОС РЕЗЕРВА</button>
+      <button class="get-pin-btn" id="getPinBtn">+ РЕЗЕРВ</button>
     </div>
 
+    <div class="log" id="log" aria-live="polite"></div>
   </div>
 </div>
 
+<!-- ═════════ КОНТРОЛЬНЫЙ ВОПРОС ═════════ -->
 <div class="modal-overlay" id="questionOverlay">
   <div class="modal-box">
-    <h2 id="modalTitle">МЕХАНИЧЕСКИЙ ОТКАЗ</h2>
-    <div class="modal-question-text" id="modalQ">Инициализация проверочного алгоритма...</div>
+    <h2 id="modalTitle">ЗАПРОС ИДЕНТИФИКАЦИИ</h2>
+    <div class="modal-question-text" id="modalQ"></div>
     <div class="modal-options" id="modalOpts"></div>
     <div class="modal-result" id="modalResult"></div>
-    <button class="modal-continue-btn" id="modalContBtn">СИНХРОНИЗИРОВАТЬ СИСТЕМУ</button>
+    <button class="modal-continue-btn" id="modalContBtn">ПРОДОЛЖИТЬ</button>
   </div>
 </div>
 
+<!-- ═════════ ПОБЕДА / ПОРАЖЕНИЕ ═════════ -->
 <div class="win-overlay" id="winOverlay">
-  <!-- Эффект падающей матрицы на заднем плане -->
-  <div class="matrix-rain-bg"></div>
-  
+  <canvas class="rain" id="rainCanvas"></canvas>
   <div class="win-box">
-    <h2>ДОСТУП РАЗРЕШЕН</h2>
-    <div class="win-msg">
-      <p class="line-reveal delay-1">КРИТИЧЕСКИЕ СЕКТОРЫ ВЗЛОМАНЫ УСПЕШНО!</p>
-      <p class="line-reveal delay-2">ПОЗДРАВЛЯЮ, АДМИНИСТРАТОР ПУСТОШИ!</p>
-      <p class="line-reveal delay-3 highlight-birthday">А ЕСЛИ ТЫ - SLAMERT, ТО ЕЩЁ И С ДНЁМ РОЖДЕНИЯ!</p>
-      <p class="line-reveal delay-4">ДОСТУП К ПОДАРКУ БУДЕТ РАЗБЛОКИРОВАН ПРИ ВСТРЕЧЕ</p>
-      <p class="line-reveal delay-5 subtitle-code">КОДОВАЯ ФРАЗА ДЛЯ ПОЛУЧЕНИЯ ПОДАРКА:</p>
-      
-      <!-- Секретный бокс с глитч-эффектом -->
-      <div class="secret-phrase-box line-reveal delay-6">
-        <span class="glitch-phrase" data-text='"Я ПОРВАЛ КОЛГОТКИ"'>"Я ПОРВАЛ КОЛГОТКИ"</span>
-      </div>
-    </div>
-    <p class="line-reveal delay-5 subtitle-code">СИСТЕМА СИНХРОНИЗИРОВАНА // OZ-TEC CORP.</p>
+    <h2 id="endTitle">ДОСТУП РАЗРЕШЁН</h2>
+    <div class="win-msg" id="endMsg"></div>
+    <div class="stats" id="stats"></div>
+    <button class="primary-btn" id="restartBtn">&gt; НОВЫЙ ВЗЛОМ</button>
   </div>
 </div>
 
