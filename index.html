@@ -4,15 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#020502">
-  <meta name="description" content="Ретро-терминал взлома в стиле постапокалипсиса: вскрывай замки отмычкой и подбирай пароли к терминалам.">
-  <meta property="og:title" content="OZ-TERMINAL // Взлом">
-  <meta property="og:description" content="Вскрывай замки отмычкой и подбирай пароли к терминалам.">
   <title>OZ-TERMINAL // Взлом</title>
+  <meta name="description" content="Ретро-терминал взлома в стиле постапокалипсиса: вскрывай замки отмычкой и подбирай пароли к терминалам.">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://oz-terminal.vercel.app/">
+  <meta property="og:site_name" content="OZ-TERMINAL">
+  <meta property="og:title" content="OZ-TERMINAL // Взлом">
+  <meta property="og:description" content="Вскрой замки отмычкой и подбери пароли к терминалам. Пять режимов, от новичка до бесконечного взлома.">
+  <meta property="og:image" content="https://oz-terminal.vercel.app/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="ru_RU">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="OZ-TERMINAL // Взлом">
+  <meta name="twitter:description" content="Вскрой замки отмычкой и подбери пароли к терминалам.">
+  <meta name="twitter:image" content="https://oz-terminal.vercel.app/og.png">
+
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='28' fill='%23040a04' stroke='%2333ff33' stroke-width='4'/><rect x='29' y='14' width='6' height='26' rx='3' fill='%2333ff33'/><circle cx='32' cy='44' r='5' fill='%2333ff33'/></svg>">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preload" href="fonts/ubuntu-mono-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/ubuntu-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Тема и размер шрифта применяются до отрисовки, чтобы не было мигания
+    try {
+      const st = JSON.parse(localStorage.getItem('oz.settings') || '{}');
+      if (st.theme) document.documentElement.dataset.theme = st.theme;
+      if (st.large) document.documentElement.classList.add('large');
+      if (st.crt === false) document.documentElement.classList.add('no-crt');
+    } catch (e) {}
+  </script>
 </head>
 <body>
 
@@ -22,7 +44,8 @@
     <h2>OZ INDUSTRIES™ // ТЕРМИНАЛ ВЗЛОМА</h2>
     <div class="boot-log" id="bootLog" aria-hidden="true"></div>
 
-    <div class="howto">
+    <details class="howto" id="howto">
+      <summary>КАК ИГРАТЬ</summary>
       <div class="howto-title">ЗАМОК</div>
       <div class="howto-row"><span class="howto-key">1</span><span><b>Двигай отмычку</b> — тяни по замку влево/вправо (или ← →).</span></div>
       <div class="howto-row"><span class="howto-key">2</span><span><b>Зажми «ПРОВЕРНУТЬ»</b> (или пробел). Чем ближе отмычка к нужной точке, тем дальше проворачивается цилиндр.</span></div>
@@ -30,14 +53,19 @@
       <div class="howto-title">ТЕРМИНАЛ</div>
       <div class="howto-row"><span class="howto-key">4</span><span>Найди <b>пароль</b> среди слов в дампе памяти. После ошибки терминал покажет, сколько букв стоят на своих местах.</span></div>
       <div class="howto-row"><span class="howto-key">5</span><span><b>Парные скобки</b> в одной строке — <b>(…)</b>, <b>[…]</b>, <b>{…}</b>, <b>&lt;…&gt;</b> — убирают ложное слово или восстанавливают попытки.</span></div>
-    </div>
+      <div class="howto-title">РЕЗЕРВ</div>
+      <div class="howto-row"><span class="howto-key">6</span><span>Ответь на контрольный вопрос и получи <b>отмычку</b> или <b>сканер</b>. Сканер подсвечивает зону на замке или убирает ложное слово в терминале.</span></div>
+    </details>
 
-    <div class="opt-group" role="radiogroup" aria-label="Сложность">
+    <div class="opt-group modes" role="radiogroup" aria-label="Режим">
       <span class="opt-label">РЕЖИМ:</span>
       <button class="chip diff-btn" data-diff="easy" role="radio">НОВИЧОК</button>
       <button class="chip diff-btn" data-diff="normal" role="radio">ВЗЛОМЩИК</button>
       <button class="chip diff-btn" data-diff="hard" role="radio">МАСТЕР</button>
+      <button class="chip diff-btn" data-diff="alarm" role="radio">ТРЕВОГА</button>
+      <button class="chip diff-btn" data-diff="endless" role="radio">БЕСКОНЕЧНЫЙ</button>
     </div>
+    <div class="mode-desc" id="modeDesc"></div>
     <div class="opt-group" aria-label="Темы вопросов">
       <span class="opt-label">ВОПРОСЫ:</span>
       <span class="topics" id="topics"></span>
@@ -47,7 +75,7 @@
 
     <button class="primary-btn" id="continueBtn" hidden>&gt; ПРОДОЛЖИТЬ ВЗЛОМ</button>
     <button class="primary-btn" id="startBtn">&gt; НОВЫЙ ВЗЛОМ</button>
-    <button class="link-btn" id="statsLinkBtn">[ СТАТИСТИКА И ЖУРНАЛ ]</button>
+    <button class="link-btn" id="statsLinkBtn">[ СТАТИСТИКА И НАСТРОЙКИ ]</button>
   </div>
 </div>
 
@@ -56,9 +84,12 @@
   <div class="screen" id="screen">
 
     <div class="status-bar">
-      <span>OZ ST-3000</span>
+      <span class="status-name">OZ ST-3000</span>
       <span class="status-time" id="timer">00:00</span>
-      <button class="sound-btn" id="soundBtn" aria-label="Звук" title="Звук (M)">♪ ВКЛ</button>
+      <span class="status-btns">
+        <button class="sound-btn" id="pauseBtn" aria-label="Пауза" title="Пауза (P / Esc)">❚❚</button>
+        <button class="sound-btn" id="soundBtn" aria-label="Звук" title="Звук (M)">♪ ВКЛ</button>
+      </span>
     </div>
 
     <nav class="tabs" role="tablist">
@@ -66,6 +97,7 @@
       <button class="tab" data-tab="stat" role="tab">СТАТ</button>
       <button class="tab" data-tab="inv" role="tab">ИНВ</button>
       <button class="tab" data-tab="data" role="tab">ДАННЫЕ</button>
+      <button class="tab" data-tab="cfg" role="tab">НАСТР</button>
     </nav>
 
     <div class="panes">
@@ -74,7 +106,7 @@
         <div class="lock-title" id="levelTitle">ЗАГРУЗКА ДАННЫХ...</div>
         <div class="level-indicator" id="levelIndicator"></div>
 
-        <div class="lock-area">
+        <div class="lock-area" id="lockArea">
           <div id="lockView">
             <div class="lock-canvas-wrap">
               <canvas id="lockCanvas" width="240" height="240" aria-label="Замок. Тяните влево и вправо, чтобы двигать отмычку."></canvas>
@@ -100,25 +132,60 @@
               <div class="wear-bar" id="wearBar"></div>
             </div>
           </div>
-          <button class="get-pin-btn" id="getPinBtn">+ РЕЗЕРВ</button>
+          <button class="get-pin-btn scan-btn" id="scanBtn" title="Сканер (S)">⌖ <span id="scanCount">0</span></button>
+          <button class="get-pin-btn" id="getPinBtn" title="Резерв (R)">+ РЕЗЕРВ</button>
         </div>
 
         <div class="log" id="log" aria-live="polite"></div>
       </section>
 
       <!-- СТАТ -->
-      <section class="pane" data-pane="stat">
-        <div class="pane-scroll" id="statPane"></div>
-      </section>
-
+      <section class="pane" data-pane="stat"><div class="pane-scroll" id="statPane"></div></section>
       <!-- ИНВ -->
-      <section class="pane" data-pane="inv">
-        <div class="pane-scroll" id="invPane"></div>
-      </section>
-
+      <section class="pane" data-pane="inv"><div class="pane-scroll" id="invPane"></div></section>
       <!-- ДАННЫЕ -->
-      <section class="pane" data-pane="data">
-        <div class="pane-scroll" id="dataPane"></div>
+      <section class="pane" data-pane="data"><div class="pane-scroll" id="dataPane"></div></section>
+
+      <!-- НАСТРОЙКИ -->
+      <section class="pane" data-pane="cfg">
+        <div class="pane-scroll">
+          <h3>ЗВУК</h3>
+          <label class="setting">
+            <span>ГРОМКОСТЬ</span>
+            <input type="range" id="setVolume" min="0" max="100" step="5">
+            <b id="setVolumeVal">80%</b>
+          </label>
+          <label class="setting"><span>ВИБРАЦИЯ</span><input type="checkbox" id="setVibro"><i class="toggle"></i></label>
+
+          <h3>ЭКРАН</h3>
+          <div class="setting">
+            <span>ЦВЕТ</span>
+            <span class="themes" id="themes">
+              <button class="chip theme-btn" data-theme="green" style="--sw:#33ff33">ЗЕЛ</button>
+              <button class="chip theme-btn" data-theme="amber" style="--sw:#ffb000">ЯНТ</button>
+              <button class="chip theme-btn" data-theme="white" style="--sw:#e8f4ff">БЕЛ</button>
+              <button class="chip theme-btn" data-theme="cyan" style="--sw:#33e0ff">ГОЛ</button>
+            </span>
+          </div>
+          <label class="setting"><span>ЭФФЕКТЫ ЭЛТ (ПОЛОСЫ, МЕРЦАНИЕ)</span><input type="checkbox" id="setCrt"><i class="toggle"></i></label>
+          <label class="setting"><span>ЭФФЕКТ ПЕЧАТИ В ТЕРМИНАЛЕ</span><input type="checkbox" id="setTyping"><i class="toggle"></i></label>
+          <label class="setting"><span>КРУПНЫЙ ШРИФТ</span><input type="checkbox" id="setLarge"><i class="toggle"></i></label>
+
+          <h3>ОБУЧЕНИЕ</h3>
+          <button class="primary-btn secondary" id="tutorialResetBtn">ПРОЙТИ ОБУЧЕНИЕ ЗАНОВО</button>
+          <div class="muted setting-note">Подсказки появятся в следующем новом взломе.</div>
+
+          <h3>УПРАВЛЕНИЕ</h3>
+          <div class="kv keys">
+            <div><span>← →</span><b>двигать отмычку (Shift — точнее)</b></div>
+            <div><span>ПРОБЕЛ / ↑</span><b>провернуть цилиндр</b></div>
+            <div><span>СТРЕЛКИ + ENTER</span><b>выбор слова в терминале</b></div>
+            <div><span>S</span><b>сканер</b></div>
+            <div><span>R</span><b>резерв</b></div>
+            <div><span>P / ESC</span><b>пауза</b></div>
+            <div><span>M</span><b>звук</b></div>
+          </div>
+        </div>
       </section>
     </div>
   </div>
@@ -131,19 +198,44 @@
     <div class="modal-question-text" id="modalQ"></div>
     <div class="modal-options" id="modalOpts"></div>
     <div class="modal-result" id="modalResult"></div>
+    <div class="modal-rewards" id="modalRewards" hidden>
+      <button class="reward-btn" data-reward="pick"><span class="opt-key">1</span>+1 ОТМЫЧКА</button>
+      <button class="reward-btn" data-reward="scan"><span class="opt-key">2</span>+1 СКАНЕР</button>
+    </div>
     <button class="modal-continue-btn" id="modalContBtn">ПРОДОЛЖИТЬ</button>
+  </div>
+</div>
+
+<!-- ═════════ ПАУЗА ═════════ -->
+<div class="modal-overlay" id="pauseOverlay">
+  <div class="modal-box modal-green pause-box">
+    <h2>ПАУЗА</h2>
+    <div class="pause-info" id="pauseInfo"></div>
+    <button class="primary-btn" id="resumeBtn">&gt; ПРОДОЛЖИТЬ</button>
+    <button class="primary-btn secondary" id="pauseCfgBtn">НАСТРОЙКИ</button>
+    <button class="primary-btn secondary" id="pauseMenuBtn">ВЫЙТИ В МЕНЮ</button>
+    <div class="muted setting-note">Прогресс сохраняется автоматически.</div>
   </div>
 </div>
 
 <!-- ═════════ ФИНАЛ ═════════ -->
 <div class="win-overlay" id="winOverlay">
   <canvas class="rain" id="rainCanvas"></canvas>
-  <div class="win-box">
+  <div class="win-box" id="winBox">
     <h2 id="endTitle">ДОСТУП РАЗРЕШЁН</h2>
     <div class="win-msg" id="endMsg"></div>
     <div class="stats" id="stats"></div>
     <div class="new-ach" id="newAch"></div>
-    <button class="primary-btn" id="restartBtn">&gt; НОВЫЙ ВЗЛОМ</button>
+    <button class="primary-btn" id="restartBtn">&gt; В МЕНЮ</button>
+  </div>
+</div>
+
+<!-- ═════════ ПОДСКАЗКА ОБУЧЕНИЯ ═════════ -->
+<div class="coach" id="coach" hidden>
+  <div class="coach-text" id="coachText"></div>
+  <div class="coach-btns">
+    <button class="link-btn" id="coachSkip">[ ПРОПУСТИТЬ ОБУЧЕНИЕ ]</button>
+    <button class="link-btn coach-ok" id="coachOk">[ ПОНЯТНО ]</button>
   </div>
 </div>
 

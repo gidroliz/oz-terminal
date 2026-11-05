@@ -9,6 +9,7 @@ const AudioEngine = (() => {
   let ctx = null;
   let master = null;
   let enabled = localStorage.getItem('oz.sound') !== 'off';
+  let volume = 0.8;
   let noiseBuf = null;
   const L = {}; // непрерывные слои
 
@@ -16,7 +17,7 @@ const AudioEngine = (() => {
     if (!ctx) {
       try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
       master = ctx.createGain();
-      master.gain.value = enabled ? 1 : 0;
+      master.gain.value = enabled ? volume : 0;
       master.connect(ctx.destination);
       noiseBuf = makeNoise(2);
       buildLayers();
@@ -148,13 +149,21 @@ const AudioEngine = (() => {
     lockout() { tone(140, 'sawtooth', 0.6, 0.15); tone(70, 'sawtooth', 0.8, 0.15, 0.1); },
     win()     { [440, 554, 659, 880, 1109, 1319].forEach((f, i) => tone(f, 'sine', 0.3, 0.12, i * 0.11)); },
     good()    { [660, 990].forEach((f, i) => tone(f, 'sine', 0.18, 0.1, i * 0.09)); },
+    beep()    { tone(1000, 'square', 0.06, 0.05); },
+    scan()    { [300, 600, 1200, 2400].forEach((f, i) => tone(f, 'sine', 0.08, 0.05, i * 0.05)); },
+    type()    { noise(0.012, 0.05, 3500 + Math.random() * 1500); },
     fail()    { tone(120, 'sawtooth', 0.4, 0.15); tone(90, 'sawtooth', 0.5, 0.15, 0.05); },
   };
 
   function setEnabled(on) {
     enabled = on;
     localStorage.setItem('oz.sound', on ? 'on' : 'off');
-    if (master) to(master.gain, on ? 1 : 0, 0.02);
+    if (master) to(master.gain, on ? volume : 0, 0.02);
+  }
+
+  function setVolume(v) {
+    volume = Math.max(0, Math.min(1, v));
+    if (master) to(master.gain, enabled ? volume : 0, 0.02);
   }
 
   document.addEventListener('visibilitychange', () => {
@@ -163,7 +172,7 @@ const AudioEngine = (() => {
   });
 
   return {
-    init, update, setEnabled, fx,
+    init, update, setEnabled, setVolume, fx,
     get enabled() { return enabled; },
   };
 })();
@@ -171,5 +180,6 @@ const AudioEngine = (() => {
 const Sound = AudioEngine.fx;
 
 function vibrate(pattern) {
-  if (AudioEngine.enabled && navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} }
+  if (typeof SETTINGS !== 'undefined' && !SETTINGS.vibro) return;
+  if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} }
 }

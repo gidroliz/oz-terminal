@@ -157,8 +157,8 @@ const Terminal = (() => {
     preview = null;
     root.innerHTML = `
       <div class="term-head">
-        <div>ROBUST-OS // ПРОТОКОЛ ДОСТУПА</div>
-        <div class="term-sub">ВВЕДИТЕ ПАРОЛЬ <span class="term-len"></span></div>
+        <div class="term-h1"></div>
+        <div class="term-sub"></div>
         <div class="term-attempts"></div>
       </div>
       <div class="term-dump"></div>
@@ -178,7 +178,10 @@ const Terminal = (() => {
       lockSub: root.querySelector('.term-lock-sub'),
       spans: [],
     };
-    root.querySelector('.term-len').textContent = `(${T.len} БУКВ)`;
+    flushTyping();
+    logPainted = T.log.length;
+    typeInto(root.querySelector('.term-h1'), 'ROBUST-OS // ПРОТОКОЛ ДОСТУПА');
+    typeInto(root.querySelector('.term-sub'), `ВВЕДИТЕ ПАРОЛЬ (${T.len} БУКВ)`);
 
     for (let c = 0; c < COLUMNS; c++) {
       const col = document.createElement('div');
@@ -226,15 +229,50 @@ const Terminal = (() => {
     view.attempts.classList.toggle('warn', T.attempts === 1);
   }
 
+  // ─── Эффект печати ───────────────────────────
+  let typing = true;
+  let queue = [];
+  let typeTimer = null;
+  let logPainted = 0;
+
+  function typeInto(el, text) {
+    if (!typing) { el.textContent = text; return; }
+    el.textContent = '';
+    queue.push({ el, text, pos: 0 });
+    if (!typeTimer) typeTimer = setInterval(typeStep, 14);
+  }
+
+  function typeStep() {
+    const job = queue[0];
+    if (!job) { clearInterval(typeTimer); typeTimer = null; return; }
+    job.pos += 1;
+    job.el.textContent = job.text.slice(0, job.pos);
+    if (job.pos % 2 === 0) cb.sound && cb.sound('type');
+    if (job.pos >= job.text.length) queue.shift();
+  }
+
+  function flushTyping() {
+    queue.forEach((j) => { j.el.textContent = j.text; });
+    queue = [];
+    clearInterval(typeTimer);
+    typeTimer = null;
+  }
+
   function paintLog() {
+    flushTyping();
     view.log.innerHTML = '';
-    T.log.slice(-4).forEach((l) => {
+    const from = Math.max(0, T.log.length - 4);
+    T.log.slice(from).forEach((l, k) => {
       const d = document.createElement('div');
-      d.textContent = '>' + l.t;
       if (l.k) d.className = l.k;
       view.log.appendChild(d);
+      if (from + k >= logPainted) typeInto(d, '>' + l.t);
+      else d.textContent = '>' + l.t;
     });
+    logPainted = T.log.length;
   }
+
+  function setTyping(on) { typing = on; if (!on) flushTyping(); }
 
   let lit = [];
   function paintHover() {
@@ -319,14 +357,11 @@ const Terminal = (() => {
       // Скобка срабатывает один раз
       T.chars = T.chars.slice(0, tok.a) + '.' + T.chars.slice(tok.a + 1);
       if (tok.b !== tok.a) T.chars = T.chars.slice(0, tok.b) + '.' + T.chars.slice(tok.b + 1);
-      const duds = T.words.filter((w) => !w.removed && w.w !== T.password);
-      if ((T.attempts < T.max && Math.random() < 0.25) || duds.length === 0) {
+      if ((T.attempts < T.max && Math.random() < 0.25) || !dudsLeft()) {
         T.attempts = T.max;
         addLog('Попытки восстановлены.', 'good');
       } else {
-        const d = duds[rnd(duds.length)];
-        d.removed = true;
-        T.chars = T.chars.slice(0, d.start) + '.'.repeat(d.w.length) + T.chars.slice(d.start + d.w.length);
+        dropDud();
         addLog('Ложный вариант удалён.', 'good');
       }
       paintChars();
@@ -341,6 +376,31 @@ const Terminal = (() => {
     paintLog();
     cb.sound && cb.sound('key');
   }
+
+  function dudsLeft() {
+    return T.words.filter((w) => !w.removed && w.w !== T.password).length;
+  }
+
+  function dropDud() {
+    const duds = T.words.filter((w) => !w.removed && w.w !== T.password);
+    const d = duds[rnd(duds.length)];
+    d.removed = true;
+    T.chars = T.chars.slice(0, d.start) + '.'.repeat(d.w.length) + T.chars.slice(d.start + d.w.length);
+  }
+
+  // Сканер: убирает ложное слово снаружи (из основной игры)
+  function scan() {
+    if (!T || T.solved || !dudsLeft()) return false;
+    dropDud();
+    addLog('Сканер: ложный вариант удалён.', 'good');
+    if (preview || hover >= 0) { preview = null; hover = -1; }
+    paintChars();
+    paintLog();
+    cb.onChange && cb.onChange(T);
+    return true;
+  }
+
+  function canScan() { return !!T && !T.solved && dudsLeft() > 0; }
 
   function moveCursor(dx, dy) {
     if (cursor < 0) cursor = hover >= 0 ? hover : 0;
@@ -384,5 +444,5 @@ const Terminal = (() => {
     view.lockSub.textContent = `ПЕРЕЗАГРУЗКА ЧЕРЕЗ ${Math.ceil(secondsLeft)} С...`;
   }
 
-  return { create, mount, handleKey, setEnabled, showLock, likeness };
+  return { create, mount, handleKey, setEnabled, showLock, likeness, scan, canScan, setTyping, flushTyping };
 })();
