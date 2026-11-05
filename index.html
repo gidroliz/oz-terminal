@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#020502">
-  <meta name="description" content="Ретро-терминал взлома замков в стиле постапокалипсиса. Найди сладкую точку, проверни цилиндр и не сломай отмычку.">
-  <meta property="og:title" content="OZ-TERMINAL // Взлом замка">
-  <meta property="og:description" content="Найди сладкую точку, проверни цилиндр и не сломай отмычку.">
-  <title>OZ-TERMINAL // Взлом замка</title>
+  <meta name="description" content="Ретро-терминал взлома в стиле постапокалипсиса: вскрывай замки отмычкой и подбирай пароли к терминалам.">
+  <meta property="og:title" content="OZ-TERMINAL // Взлом">
+  <meta property="og:description" content="Вскрывай замки отмычкой и подбирай пароли к терминалам.">
+  <title>OZ-TERMINAL // Взлом</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='28' fill='%23040a04' stroke='%2333ff33' stroke-width='4'/><rect x='29' y='14' width='6' height='26' rx='3' fill='%2333ff33'/><circle cx='32' cy='44' r='5' fill='%2333ff33'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,22 +23,31 @@
     <div class="boot-log" id="bootLog" aria-hidden="true"></div>
 
     <div class="howto">
+      <div class="howto-title">ЗАМОК</div>
       <div class="howto-row"><span class="howto-key">1</span><span><b>Двигай отмычку</b> — тяни по замку влево/вправо (или ← →).</span></div>
-      <div class="howto-row"><span class="howto-key">2</span><span><b>Зажми «ПРОВЕРНУТЬ»</b> (или пробел). Чем ближе отмычка к сладкой точке, тем дальше проворачивается цилиндр.</span></div>
-      <div class="howto-row"><span class="howto-key">3</span><span>Замок <b>заклинило</b> — экран трясётся, лампа красная? <b>Отпусти!</b> Отмычка изнашивается и может сломаться.</span></div>
-      <div class="howto-row"><span class="howto-key">4</span><span>Отмычки кончились — запроси резерв и ответь на контрольный вопрос.</span></div>
+      <div class="howto-row"><span class="howto-key">2</span><span><b>Зажми «ПРОВЕРНУТЬ»</b> (или пробел). Чем ближе отмычка к нужной точке, тем дальше проворачивается цилиндр.</span></div>
+      <div class="howto-row"><span class="howto-key">3</span><span><b>Заклинило</b> — всё трясётся и скрежещет? <b>Отпусти!</b> Отмычка изнашивается и ломается.</span></div>
+      <div class="howto-title">ТЕРМИНАЛ</div>
+      <div class="howto-row"><span class="howto-key">4</span><span>Найди <b>пароль</b> среди слов в дампе памяти. После ошибки терминал покажет, сколько букв стоят на своих местах.</span></div>
+      <div class="howto-row"><span class="howto-key">5</span><span><b>Парные скобки</b> в одной строке — <b>(…)</b>, <b>[…]</b>, <b>{…}</b>, <b>&lt;…&gt;</b> — убирают ложное слово или восстанавливают попытки.</span></div>
     </div>
 
-    <div class="difficulty" role="radiogroup" aria-label="Сложность">
-      <span class="difficulty-label">РЕЖИМ:</span>
-      <button class="diff-btn" data-diff="easy" role="radio">НОВИЧОК</button>
-      <button class="diff-btn active" data-diff="normal" role="radio">ВЗЛОМЩИК</button>
-      <button class="diff-btn" data-diff="hard" role="radio">МАСТЕР</button>
+    <div class="opt-group" role="radiogroup" aria-label="Сложность">
+      <span class="opt-label">РЕЖИМ:</span>
+      <button class="chip diff-btn" data-diff="easy" role="radio">НОВИЧОК</button>
+      <button class="chip diff-btn" data-diff="normal" role="radio">ВЗЛОМЩИК</button>
+      <button class="chip diff-btn" data-diff="hard" role="radio">МАСТЕР</button>
+    </div>
+    <div class="opt-group" aria-label="Темы вопросов">
+      <span class="opt-label">ВОПРОСЫ:</span>
+      <span class="topics" id="topics"></span>
     </div>
 
     <div class="best-line" id="bestLine"></div>
 
-    <button class="primary-btn" id="startBtn">&gt; ИНИЦИИРОВАТЬ ВЗЛОМ</button>
+    <button class="primary-btn" id="continueBtn" hidden>&gt; ПРОДОЛЖИТЬ ВЗЛОМ</button>
+    <button class="primary-btn" id="startBtn">&gt; НОВЫЙ ВЗЛОМ</button>
+    <button class="link-btn" id="statsLinkBtn">[ СТАТИСТИКА И ЖУРНАЛ ]</button>
   </div>
 </div>
 
@@ -52,37 +61,66 @@
       <button class="sound-btn" id="soundBtn" aria-label="Звук" title="Звук (M)">♪ ВКЛ</button>
     </div>
 
-    <div class="lock-title" id="levelTitle">ЗАГРУЗКА ДАННЫХ...</div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="hack" role="tab">ВЗЛОМ</button>
+      <button class="tab" data-tab="stat" role="tab">СТАТ</button>
+      <button class="tab" data-tab="inv" role="tab">ИНВ</button>
+      <button class="tab" data-tab="data" role="tab">ДАННЫЕ</button>
+    </nav>
 
-    <div class="level-indicator" id="levelIndicator"></div>
+    <div class="panes">
+      <!-- ВЗЛОМ -->
+      <section class="pane active" data-pane="hack">
+        <div class="lock-title" id="levelTitle">ЗАГРУЗКА ДАННЫХ...</div>
+        <div class="level-indicator" id="levelIndicator"></div>
 
-    <div class="lock-area">
-      <div class="lock-canvas-wrap">
-        <canvas id="lockCanvas" width="240" height="240" aria-label="Замок. Тяните влево и вправо, чтобы двигать отмычку."></canvas>
-      </div>
-      <div class="hint-text" id="hintText">[ ТЯНИ ВЛЕВО / ВПРАВО ]</div>
-    </div>
-
-    <div class="action-panel">
-      <div class="lamp" id="lamp"></div>
-      <button class="hack-btn" id="hackBtn">
-        <div class="hack-btn-bar" id="hackBar"></div>
-        <span id="hackBtnText">ПРОВЕРНУТЬ (УДЕРЖ.)</span>
-      </button>
-    </div>
-
-    <div class="inventory">
-      <div class="inv-left">
-        <span class="inv-label">ОТМЫЧКИ</span>
-        <span class="pick-count" id="pickCount">0</span>
-        <div class="wear" title="Состояние текущей отмычки">
-          <div class="wear-bar" id="wearBar"></div>
+        <div class="lock-area">
+          <div id="lockView">
+            <div class="lock-canvas-wrap">
+              <canvas id="lockCanvas" width="240" height="240" aria-label="Замок. Тяните влево и вправо, чтобы двигать отмычку."></canvas>
+            </div>
+            <div class="hint-text" id="hintText">[ ТЯНИ ВЛЕВО / ВПРАВО ]</div>
+          </div>
+          <div id="termView" class="term-view" hidden></div>
         </div>
-      </div>
-      <button class="get-pin-btn" id="getPinBtn">+ РЕЗЕРВ</button>
-    </div>
 
-    <div class="log" id="log" aria-live="polite"></div>
+        <div class="action-panel" id="actionPanel">
+          <div class="lamp" id="lamp"></div>
+          <button class="hack-btn" id="hackBtn">
+            <div class="hack-btn-bar" id="hackBar"></div>
+            <span id="hackBtnText">ПРОВЕРНУТЬ (УДЕРЖ.)</span>
+          </button>
+        </div>
+
+        <div class="inventory">
+          <div class="inv-left">
+            <span class="inv-label">ОТМЫЧКИ</span>
+            <span class="pick-count" id="pickCount">0</span>
+            <div class="wear" title="Состояние текущей отмычки">
+              <div class="wear-bar" id="wearBar"></div>
+            </div>
+          </div>
+          <button class="get-pin-btn" id="getPinBtn">+ РЕЗЕРВ</button>
+        </div>
+
+        <div class="log" id="log" aria-live="polite"></div>
+      </section>
+
+      <!-- СТАТ -->
+      <section class="pane" data-pane="stat">
+        <div class="pane-scroll" id="statPane"></div>
+      </section>
+
+      <!-- ИНВ -->
+      <section class="pane" data-pane="inv">
+        <div class="pane-scroll" id="invPane"></div>
+      </section>
+
+      <!-- ДАННЫЕ -->
+      <section class="pane" data-pane="data">
+        <div class="pane-scroll" id="dataPane"></div>
+      </section>
+    </div>
   </div>
 </div>
 
@@ -97,18 +135,24 @@
   </div>
 </div>
 
-<!-- ═════════ ПОБЕДА / ПОРАЖЕНИЕ ═════════ -->
+<!-- ═════════ ФИНАЛ ═════════ -->
 <div class="win-overlay" id="winOverlay">
   <canvas class="rain" id="rainCanvas"></canvas>
   <div class="win-box">
     <h2 id="endTitle">ДОСТУП РАЗРЕШЁН</h2>
     <div class="win-msg" id="endMsg"></div>
     <div class="stats" id="stats"></div>
+    <div class="new-ach" id="newAch"></div>
     <button class="primary-btn" id="restartBtn">&gt; НОВЫЙ ВЗЛОМ</button>
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
+<script src="audio.js"></script>
+<script src="words.js"></script>
 <script src="questions.js"></script>
+<script src="terminal.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

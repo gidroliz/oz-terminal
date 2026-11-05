@@ -1,98 +1,85 @@
 'use strict';
 
 // ═══════════════════════════════════════════════
-// ЗВУК (синтез через Web Audio API)
-// ═══════════════════════════════════════════════
-let audioCtx = null;
-let soundOn = localStorage.getItem('oz.sound') !== 'off';
-
-function initAudio() {
-  if (!audioCtx) {
-    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
-  }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-}
-
-function playTone(freq, type, duration, vol = 0.1, delay = 0) {
-  if (!audioCtx || !soundOn) return;
-  try {
-    const t = audioCtx.currentTime + delay;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, t);
-    gain.gain.setValueAtTime(vol, t);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t);
-    osc.stop(t + duration + 0.02);
-  } catch (e) {}
-}
-
-function playNoise(duration, vol = 0.1, freq = 900, type = 'bandpass') {
-  if (!audioCtx || !soundOn) return;
-  try {
-    const size = Math.floor(audioCtx.sampleRate * duration);
-    const buffer = audioCtx.createBuffer(1, size, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
-    const src = audioCtx.createBufferSource();
-    src.buffer = buffer;
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = type;
-    filter.frequency.value = freq;
-    const gain = audioCtx.createGain();
-    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-    src.connect(filter).connect(gain).connect(audioCtx.destination);
-    src.start();
-  } catch (e) {}
-}
-
-const Sound = {
-  key()     { playTone(1200 + Math.random() * 300, 'square', 0.015, 0.02); },
-  click()   { playTone(950, 'sine', 0.03, 0.08); },
-  scratch() { playNoise(0.03, 0.05, 2200 + Math.random() * 1500); },
-  tick()    { playTone(320 + Math.random() * 60, 'triangle', 0.02, 0.06); },
-  grind()   { playNoise(0.07, 0.12, 180 + Math.random() * 80, 'lowpass'); playTone(55 + Math.random() * 15, 'sawtooth', 0.06, 0.04); },
-  snap()    { playNoise(0.25, 0.4, 2500); playTone(110, 'triangle', 0.25, 0.3); },
-  unlock()  { playNoise(0.08, 0.25, 600); [523, 659, 784].forEach((f, i) => playTone(f, 'sine', 0.22, 0.12, 0.08 + i * 0.09)); },
-  win()     { [440, 554, 659, 880, 1109, 1319].forEach((f, i) => playTone(f, 'sine', 0.3, 0.12, i * 0.11)); },
-  good()    { [660, 990].forEach((f, i) => playTone(f, 'sine', 0.18, 0.1, i * 0.09)); },
-  fail()    { playTone(120, 'sawtooth', 0.4, 0.15); playTone(90, 'sawtooth', 0.5, 0.15, 0.05); },
-};
-
-function vibrate(pattern) {
-  if (soundOn && navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} }
-}
-
-// ═══════════════════════════════════════════════
 // НАСТРОЙКИ
 // ═══════════════════════════════════════════════
-const DIFFS = {
-  easy:   { name: 'НОВИЧОК',  picks: 3, wearRate: 55,  levels: [14, 10, 7] },
-  normal: { name: 'ВЗЛОМЩИК', picks: 2, wearRate: 75,  levels: [10, 6.5, 4] },
-  hard:   { name: 'МАСТЕР',   picks: 1, wearRate: 100, levels: [7, 4.5, 3, 2] },
-};
+const L = (tol) => ({ type: 'lock', tol });
+const T = (len, count) => ({ type: 'term', len, count });
 
-const LEVEL_NAMES = ['НИЗКАЯ ЗАЩИТА', 'СРЕДНЯЯ ЗАЩИТА', 'ВЫСОКАЯ ЗАЩИТА', 'ПРЕДЕЛЬНАЯ ЗАЩИТА'];
+const DIFFS = {
+  easy:   { name: 'НОВИЧОК',  picks: 3, wearRate: 55,  stages: [L(14), T(5, 10), L(9)] },
+  normal: { name: 'ВЗЛОМЩИК', picks: 2, wearRate: 75,  stages: [L(10), T(6, 12), L(6.5), T(7, 14), L(4)] },
+  hard:   { name: 'МАСТЕР',   picks: 1, wearRate: 100, stages: [L(7), T(7, 14), L(4), T(8, 16), L(2.5)] },
+};
 
 const CFG = {
-  ROT_SPEED: 70,      // градусов поворота цилиндра в секунду
-  RETURN_SPEED: 260,  // скорость возврата цилиндра
-  OPEN_ANGLE: 90,     // угол, при котором замок открыт
-  FALLOFF: 38,        // на сколько градусов за пределами зоны цилиндр перестаёт двигаться
+  ROT_SPEED: 70,       // градусов поворота цилиндра в секунду
+  RETURN_SPEED: 260,   // скорость возврата цилиндра
+  OPEN_ANGLE: 90,      // угол, при котором замок открыт
+  FALLOFF: 38,         // на сколько градусов за пределами зоны цилиндр перестаёт двигаться
   PICK_LIMIT: 88,
   DRAG_SENS: 0.55,
-  REQ_COOLDOWN: 6,    // секунд блокировки после неверного ответа
+  REQ_COOLDOWN: 6,     // секунд блокировки резерва после неверного ответа
+  TERM_LOCKOUT: 10,    // секунд перезагрузки терминала
 };
 
+const ACHIEVEMENTS = [
+  { id: 'first',   name: 'ПЕРВЫЙ ДОСТУП', desc: 'Пройти любой взлом до конца' },
+  { id: 'ghost',   name: 'ПРИЗРАК',       desc: 'Пройти взлом, не сломав ни одной отмычки' },
+  { id: 'hacker',  name: 'ХАКЕР',         desc: 'Взломать терминал с первой попытки' },
+  { id: 'master',  name: 'МАСТЕР',        desc: 'Пройти режим «Мастер»' },
+  { id: 'speed',   name: 'СКОРОСТРЕЛ',    desc: 'Пройти «Взломщика» или «Мастера» быстрее 2 минут' },
+  { id: 'erudite', name: 'ЭРУДИТ',        desc: 'Дать 10 верных ответов на контрольные вопросы' },
+  { id: 'brute',   name: 'ГРУБАЯ СИЛА',   desc: 'Сломать 10 отмычек' },
+  { id: 'veteran', name: 'ВЕТЕРАН',       desc: 'Пройти 10 взломов' },
+];
+
+// ═══════════════════════════════════════════════
+// ПРОФИЛЬ (статистика за всё время)
+// ═══════════════════════════════════════════════
+const PROFILE_KEY = 'oz.profile';
+const RUN_KEY = 'oz.run';
+
+function loadJSON(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch (e) { return fallback; }
+}
+
+function emptyProfile() {
+  return { runs: 0, finished: 0, locks: 0, terms: 0, broken: 0, right: 0, wrong: 0, lockouts: 0, playMs: 0, best: {}, history: [], ach: {} };
+}
+
+const P = Object.assign(emptyProfile(), loadJSON(PROFILE_KEY, {}));
+// Перенос рекордов из прошлой версии
+['easy', 'normal', 'hard'].forEach((d) => {
+  const old = loadJSON('oz.best.' + d, null);
+  if (old && !P.best[d]) P.best[d] = old;
+  localStorage.removeItem('oz.best.' + d);
+});
+
+function saveProfile() { localStorage.setItem(PROFILE_KEY, JSON.stringify(P)); }
+
+function unlock(id) {
+  if (P.ach[id]) return false;
+  P.ach[id] = Date.now();
+  saveProfile();
+  const a = ACHIEVEMENTS.find((x) => x.id === id);
+  toast(`★ ДОСТИЖЕНИЕ: ${a.name}`);
+  log(`Достижение: ${a.name}`, 'good');
+  Sound.good();
+  return true;
+}
+
+// ═══════════════════════════════════════════════
+// СОСТОЯНИЕ ВЗЛОМА
+// ═══════════════════════════════════════════════
 const S = {
   diff: localStorage.getItem('oz.diff') || 'normal',
+  topics: loadJSON('oz.topics', Object.keys(QUESTION_TOPICS)),
+  tab: 'hack',
   started: false,
   finished: false,
   modalOpen: false,
-  level: 0,
+  stage: 0,
   done: [],
   picks: 0,
   wear: 0,
@@ -106,19 +93,37 @@ const S = {
   angleBase: 0,
   lastScratchAngle: 0,
   lastTickRot: 0,
-  grindT: 0,
-  unlocking: false,
+  advancing: false,
   shake: 0,
   flash: 0,
+  term: null,
+  termLockLeft: 0,
   usedQs: [],
-  cooldownUntil: 0,
-  startTime: 0,
+  cooldownLeft: 0,
   elapsed: 0,
-  stats: { broken: 0, right: 0, wrong: 0 },
+  stats: { broken: 0, right: 0, wrong: 0, lockouts: 0 },
+  journal: [],
 };
+if (!DIFFS[S.diff]) S.diff = 'normal';
+let chosenDiff = S.diff; // режим, выбранный на стартовом экране для нового взлома
 
 const cfg = () => DIFFS[S.diff];
-const tol = () => cfg().levels[S.level];
+const stageCfg = () => cfg().stages[S.stage];
+const isLock = () => stageCfg().type === 'lock';
+const tol = () => stageCfg().tol;
+
+function stageLabel(i) {
+  const st = cfg().stages;
+  const n = st.slice(0, i + 1).filter((s) => s.type === st[i].type).length;
+  return (st[i].type === 'lock' ? 'ЗАМОК ' : 'ТЕРМ ') + n;
+}
+
+function protectionName(t) {
+  if (t >= 10) return 'НИЗКАЯ ЗАЩИТА';
+  if (t >= 6) return 'СРЕДНЯЯ ЗАЩИТА';
+  if (t >= 3.5) return 'ВЫСОКАЯ ЗАЩИТА';
+  return 'ПРЕДЕЛЬНАЯ ЗАЩИТА';
+}
 
 // ═══════════════════════════════════════════════
 // DOM
@@ -140,6 +145,9 @@ const hintText = $('hintText');
 const logEl = $('log');
 const timerEl = $('timer');
 const soundBtn = $('soundBtn');
+const lockView = $('lockView');
+const termView = $('termView');
+const actionPanel = $('actionPanel');
 const qOverlay = $('questionOverlay');
 const modalTitle = $('modalTitle');
 const modalQ = $('modalQ');
@@ -149,31 +157,36 @@ const modalCont = $('modalContBtn');
 const winOverlay = $('winOverlay');
 const startOverlay = $('startOverlay');
 const startBtn = $('startBtn');
+const continueBtn = $('continueBtn');
 const restartBtn = $('restartBtn');
 const bootLog = $('bootLog');
 const bestLine = $('bestLine');
+const toastEl = $('toast');
 
 // ═══════════════════════════════════════════════
 // ИНТЕРФЕЙС
 // ═══════════════════════════════════════════════
 function buildBadges() {
   levelIndicator.innerHTML = '';
-  cfg().levels.forEach((_, i) => {
+  cfg().stages.forEach((st, i) => {
     const b = document.createElement('div');
-    b.className = 'level-badge';
-    b.textContent = `ЗАМОК ${i + 1}`;
+    b.className = 'level-badge ' + st.type;
+    b.textContent = stageLabel(i);
     levelIndicator.appendChild(b);
   });
 }
 
 function updateBadges() {
   [...levelIndicator.children].forEach((b, i) => {
-    b.className = 'level-badge';
+    b.classList.remove('completed', 'active', 'locked');
     if (S.done[i]) b.classList.add('completed');
-    else if (i === S.level) b.classList.add('active');
+    else if (i === S.stage) b.classList.add('active');
     else b.classList.add('locked');
   });
-  lvlTitle.textContent = `[ ЗАМОК ${S.level + 1}: ${LEVEL_NAMES[S.level]} ]`;
+  const st = stageCfg();
+  lvlTitle.textContent = st.type === 'lock'
+    ? `[ ${stageLabel(S.stage)}: ${protectionName(st.tol)} ]`
+    : `[ ТЕРМИНАЛ ${stageLabel(S.stage).split(' ')[1]}: ПАРОЛЬ ИЗ ${st.len} БУКВ ]`;
 }
 
 function updatePicks(bump) {
@@ -197,21 +210,39 @@ function setLamp(state) {
 }
 
 function log(msg, kind = '') {
-  const line = document.createElement('div');
-  line.className = 'log-line ' + kind;
-  line.textContent = '> ' + msg;
-  logEl.appendChild(line);
-  while (logEl.children.length > 3) logEl.removeChild(logEl.firstChild);
+  S.journal.push({ t: fmtTime(S.elapsed), m: msg, k: kind });
+  if (S.journal.length > 200) S.journal.shift();
+  renderLog();
+  if (S.tab === 'data') renderData();
+}
+
+function renderLog() {
+  logEl.innerHTML = '';
+  S.journal.slice(-3).forEach((l) => {
+    const line = document.createElement('div');
+    line.className = 'log-line ' + l.k;
+    line.textContent = '> ' + l.m;
+    logEl.appendChild(line);
+  });
+}
+
+let toastTimer = null;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('visible'), 2600);
 }
 
 function updateButtons() {
-  const blocked = S.finished || S.modalOpen || !S.started || S.unlocking;
-  hackBtn.disabled = blocked || S.picks <= 0;
-  const cd = Math.ceil((S.cooldownUntil - performance.now()) / 1000);
+  const blocked = S.finished || S.modalOpen || !S.started || S.advancing;
+  hackBtn.disabled = blocked || S.picks <= 0 || !isLock();
+  const cd = Math.ceil(S.cooldownLeft / 1000);
   getPinBtn.disabled = blocked || S.picks > 0 || cd > 0;
   getPinBtn.textContent = cd > 0 ? `БЛОК ${cd}с` : '+ РЕЗЕРВ';
-  getPinBtn.classList.toggle('attention', !getPinBtn.disabled);
+  getPinBtn.classList.toggle('attention', !getPinBtn.disabled && isLock());
   canvas.classList.toggle('disabled-canvas', blocked || S.picks <= 0);
+  Terminal.setEnabled(!blocked && S.termLockLeft <= 0);
 
   if (S.started && !S.finished && S.picks <= 0 && !S.modalOpen) {
     hintText.textContent = '[ ОТМЫЧЕК НЕТ — ЗАПРОСИ РЕЗЕРВ ]';
@@ -225,21 +256,88 @@ function fmtTime(ms) {
   return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
 }
 
+function fmtLong(ms) {
+  const m = Math.floor(ms / 60000);
+  const h = Math.floor(m / 60);
+  return h > 0 ? `${h} ч ${m % 60} мин` : `${m} мин ${Math.floor(ms / 1000) % 60} с`;
+}
+
 function updateSoundBtn() {
-  soundBtn.textContent = soundOn ? '♪ ВКЛ' : '♪ ВЫКЛ';
-  soundBtn.classList.toggle('off', !soundOn);
+  soundBtn.textContent = AudioEngine.enabled ? '♪ ВКЛ' : '♪ ВЫКЛ';
+  soundBtn.classList.toggle('off', !AudioEngine.enabled);
 }
 
 // ═══════════════════════════════════════════════
-// ИГРОВАЯ ЛОГИКА
+// ЭТАПЫ
 // ═══════════════════════════════════════════════
 function newTarget() {
-  // Цель не совпадает со стартовой позицией отмычки
   let t;
   do { t = Math.random() * 160 - 80; } while (Math.abs(t) < tol() * 1.5);
   S.target = t;
 }
 
+function enterStage(fresh) {
+  S.rot = 0;
+  S.turning = false;
+  S.jammed = false;
+  if (isLock()) {
+    if (fresh) { S.angle = 0; newTarget(); }
+    S.term = null;
+  } else if (fresh || !S.term) {
+    const st = stageCfg();
+    S.term = Terminal.create({ len: st.len, count: st.count });
+    S.termLockLeft = 0;
+  }
+  renderStage();
+}
+
+function renderStage() {
+  const lock = isLock();
+  lockView.hidden = !lock;
+  termView.hidden = lock;
+  actionPanel.classList.toggle('hidden', !lock);
+  hackTxt.textContent = 'ПРОВЕРНУТЬ (УДЕРЖ.)';
+  hackBar.style.width = '0%';
+  setLamp('');
+  if (lock) {
+    resizeCanvas();
+  } else {
+    Terminal.mount(termView, S.term, {
+      sound: (n) => Sound[n] && Sound[n](),
+      onSolved: termSolved,
+      onLockout: termLockout,
+      onChange: () => saveRun(),
+    });
+    Terminal.showLock(S.termLockLeft / 1000);
+  }
+  updateBadges();
+  updateButtons();
+}
+
+function completeStage(msg) {
+  S.advancing = true;
+  S.done[S.stage] = true;
+  updateBadges();
+  log(msg, 'good');
+  updateButtons();
+  saveRun();
+  setTimeout(nextStage, 1300);
+}
+
+function nextStage() {
+  canvas.classList.remove('success-glow');
+  S.advancing = false;
+  if (S.stage + 1 < cfg().stages.length) {
+    S.stage++;
+    enterStage(true);
+    log(isLock() ? `${stageLabel(S.stage)}: допуск ±${tol()}°.` : `Терминал: пароль из ${stageCfg().len} букв.`);
+    saveRun();
+  } else {
+    finishGame();
+  }
+}
+
+// ─── Замок ───────────────────────────────────
 function maxRotation() {
   const diff = Math.abs(S.angle - S.target);
   if (diff <= tol()) return CFG.OPEN_ANGLE;
@@ -248,8 +346,8 @@ function maxRotation() {
 }
 
 function turnStart() {
-  if (S.turning || S.finished || S.modalOpen || !S.started || S.unlocking || S.picks <= 0) return;
-  initAudio();
+  if (S.turning || S.finished || S.modalOpen || !S.started || S.advancing || S.picks <= 0 || !isLock() || S.tab !== 'hack') return;
+  AudioEngine.init();
   S.turning = true;
   S.dragging = false;
   hackBtn.classList.add('pressed');
@@ -263,14 +361,16 @@ function turnStop() {
   S.jammed = false;
   hackBtn.classList.remove('pressed');
   hackBtn.style.transform = '';
-  if (!S.unlocking) setLamp('');
+  if (!S.advancing) setLamp('');
   updateButtons();
+  saveRun();
 }
 
 function breakPick() {
   S.picks--;
   S.wear = 0;
   S.stats.broken++;
+  P.broken++;
   S.rot = 0;
   S.flash = -1;
   turnStop();
@@ -284,14 +384,15 @@ function breakPick() {
   setLamp('red');
   setTimeout(() => { if (!S.turning) setLamp(''); }, 600);
   hackTxt.textContent = 'ОТМЫЧКА СЛОМАНА';
-  setTimeout(() => { if (!S.turning && !S.unlocking) hackTxt.textContent = 'ПРОВЕРНУТЬ (УДЕРЖ.)'; }, 1100);
+  setTimeout(() => { if (!S.turning && !S.advancing) hackTxt.textContent = 'ПРОВЕРНУТЬ (УДЕРЖ.)'; }, 1100);
   log(S.picks > 0 ? `Отмычка сломана. Осталось: ${S.picks}` : 'Последняя отмычка сломана. Нужен резерв.', 'bad');
+  if (P.broken >= 10) unlock('brute');
+  saveProfile();
   updateButtons();
+  saveRun();
 }
 
-function unlockLevel() {
-  S.unlocking = true;
-  S.done[S.level] = true;
+function unlockLock() {
   S.flash = 1;
   turnStop();
   setLamp('active-green');
@@ -299,35 +400,81 @@ function unlockLevel() {
   vibrate(40);
   hackTxt.textContent = 'ЗАМОК ОТКРЫТ!';
   canvas.classList.add('success-glow');
-  updateBadges();
-  log(`Замок ${S.level + 1} вскрыт.`, 'good');
-  updateButtons();
-  setTimeout(advanceLevel, 1300);
+  P.locks++;
+  saveProfile();
+  completeStage(`${stageLabel(S.stage)} вскрыт.`);
 }
 
-function advanceLevel() {
-  canvas.classList.remove('success-glow');
-  S.unlocking = false;
-  if (S.level + 1 < cfg().levels.length) {
-    S.level++;
-    S.rot = 0;
-    S.angle = 0;
-    newTarget();
-    updateBadges();
-    setLamp('');
-    hackTxt.textContent = 'ПРОВЕРНУТЬ (УДЕРЖ.)';
-    log(`Замок ${S.level + 1}: допуск ±${tol()}°.`);
-    updateButtons();
-  } else {
-    finishGame();
-  }
+// ─── Терминал ────────────────────────────────
+function termSolved(t) {
+  Sound.granted();
+  vibrate(40);
+  P.terms++;
+  if (t.wrong === 0) unlock('hacker');
+  saveProfile();
+  completeStage('Терминал взломан.');
 }
+
+function termLockout() {
+  S.stats.lockouts++;
+  P.lockouts++;
+  saveProfile();
+  Sound.lockout();
+  vibrate([100, 50, 100]);
+  S.termLockLeft = CFG.TERM_LOCKOUT * 1000;
+  Terminal.showLock(CFG.TERM_LOCKOUT);
+  log(`Терминал заблокирован. Перезагрузка ${CFG.TERM_LOCKOUT} с.`, 'bad');
+  updateButtons();
+  saveRun();
+}
+
+function termReboot() {
+  const st = stageCfg();
+  S.term = Terminal.create({ len: st.len, count: st.count });
+  S.termLockLeft = 0;
+  renderStage();
+  log('Терминал перезагружен. Новый пароль.');
+  saveRun();
+}
+
+// ═══════════════════════════════════════════════
+// ИГРОВОЙ ЦИКЛ
+// ═══════════════════════════════════════════════
+let saveAcc = 0;
 
 function update(dt) {
-  if (!S.started || S.finished) return;
+  const active = S.started && !S.finished && S.tab === 'hack';
 
-  S.elapsed = performance.now() - S.startTime;
+  AudioEngine.update({
+    hum: S.started && !S.finished,
+    turning: S.turning,
+    rot: S.rot,
+    jammed: S.jammed,
+    wear: S.wear,
+  });
+
+  if (!active) return;
+
+  S.elapsed += dt * 1000;
+  P.playMs += dt * 1000;
   timerEl.textContent = fmtTime(S.elapsed);
+
+  saveAcc += dt;
+  if (saveAcc > 3) { saveAcc = 0; saveRun(); saveProfile(); }
+
+  if (S.cooldownLeft > 0) {
+    const before = Math.ceil(S.cooldownLeft / 1000);
+    S.cooldownLeft = Math.max(0, S.cooldownLeft - dt * 1000);
+    if (Math.ceil(S.cooldownLeft / 1000) !== before) updateButtons();
+  }
+
+  if (S.termLockLeft > 0) {
+    S.termLockLeft -= dt * 1000;
+    Terminal.showLock(S.termLockLeft / 1000);
+    if (S.termLockLeft <= 0) termReboot();
+  }
+
+  if (!isLock()) return;
 
   if (S.turning) {
     const limit = maxRotation();
@@ -335,20 +482,17 @@ function update(dt) {
       S.rot = Math.min(limit, S.rot + CFG.ROT_SPEED * dt);
       S.jammed = false;
     }
-    if (S.rot >= CFG.OPEN_ANGLE) { unlockLevel(); return; }
+    if (S.rot >= CFG.OPEN_ANGLE) { unlockLock(); return; }
     if (S.rot >= limit - 0.01) {
-      // Цилиндр упёрся — отмычка изнашивается
-      if (!S.jammed) { S.jammed = true; setLamp('red'); hintText.textContent = '[ ЗАКЛИНИЛО! ОТПУСТИ! ]'; }
+      if (!S.jammed) { S.jammed = true; setLamp('red'); hintText.textContent = '[ ЗАКЛИНИЛО! ОТПУСТИ! ]'; vibrate(30); }
       S.wear += cfg().wearRate * dt;
-      S.grindT -= dt;
-      if (S.grindT <= 0) { Sound.grind(); vibrate(25); S.grindT = 0.08; }
       const f = 1 + S.wear / 25;
       hackBtn.style.transform = `translate(${(Math.random() - .5) * f}px, ${(Math.random() - .5) * f}px)`;
       updateWear();
       if (S.wear >= 100) { breakPick(); return; }
     }
     if (S.rot - S.lastTickRot > 6) { Sound.tick(); S.lastTickRot = S.rot; }
-  } else if (S.rot > 0 && !S.unlocking) {
+  } else if (S.rot > 0 && !S.advancing) {
     S.rot = Math.max(0, S.rot - CFG.RETURN_SPEED * dt);
     S.lastTickRot = S.rot;
   }
@@ -361,13 +505,13 @@ function update(dt) {
   hackBar.style.width = pct + '%';
   hackBar.classList.toggle('jam', S.jammed);
   if (S.turning) hackTxt.textContent = `ЦИЛИНДР: ${Math.floor(pct)}%`;
-  else if (!S.unlocking && hackTxt.textContent.startsWith('ЦИЛИНДР')) hackTxt.textContent = 'ПРОВЕРНУТЬ (УДЕРЖ.)';
+  else if (!S.advancing && hackTxt.textContent.startsWith('ЦИЛИНДР')) hackTxt.textContent = 'ПРОВЕРНУТЬ (УДЕРЖ.)';
 }
 
 // ═══════════════════════════════════════════════
 // ОТРИСОВКА ЗАМКА
 // ═══════════════════════════════════════════════
-const VIEW = 240; // логический размер холста
+const VIEW = 240;
 
 function resizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -397,7 +541,7 @@ function drawFrame() {
   ctx.strokeStyle = 'rgba(51,255,51,0.08)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(cx, cy, R - 7, 0, Math.PI * 2); ctx.stroke();
 
-  // Шкала (верхняя полуокружность — зона хода отмычки)
+  // Шкала
   for (let a = -90; a <= 90; a += 5) {
     const rad = (a - 90) * Math.PI / 180;
     const big = a % 30 === 0;
@@ -413,10 +557,9 @@ function drawFrame() {
   // Болты
   ctx.fillStyle = '#1a331a';
   ctx.strokeStyle = '#3c6b3c';
-  [45, 135, 225, 315].forEach((deg) => {
+  [45, 135].forEach((deg) => {
     const r = deg * Math.PI / 180;
     const bx = cx + (R - 16) * Math.cos(r), by = cy + (R - 16) * Math.sin(r);
-    if (by < cy) return; // верхние болты мешают шкале
     ctx.beginPath(); ctx.arc(bx, by, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(bx - 3, by); ctx.lineTo(bx + 3, by); ctx.stroke();
   });
@@ -435,17 +578,14 @@ function drawFrame() {
   ctx.lineWidth = 2.5; ctx.stroke();
   ctx.strokeStyle = 'rgba(51,255,51,0.12)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(0, 0, cylR - 6, 0, Math.PI * 2); ctx.stroke();
-  // Метка поворота
   ctx.fillStyle = 'rgba(51,255,51,0.5)';
   ctx.fillRect(-1.5, -cylR + 2, 3, 7);
-  // Замочная скважина
   ctx.fillStyle = '#010301';
   ctx.beginPath();
   ctx.arc(0, -6, 8, 0, Math.PI * 2);
   ctx.moveTo(-4, -2); ctx.lineTo(4, -2); ctx.lineTo(6, 20); ctx.lineTo(-6, 20); ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 1; ctx.stroke();
-  // Натяжитель (вставлен снизу скважины, поворачивается вместе с цилиндром)
+  // Натяжитель
   ctx.strokeStyle = '#6f8f66'; ctx.lineWidth = 5; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(0, R * 0.62); ctx.lineTo(R * 0.3, R * 0.75); ctx.stroke();
   ctx.strokeStyle = '#a5c49a'; ctx.lineWidth = 1.5;
@@ -461,10 +601,8 @@ function drawFrame() {
     const broken = S.flash < 0;
     ctx.globalAlpha = broken ? Math.max(0, 1 + S.flash * 2) : 1;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    // Тень
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 6;
     ctx.beginPath(); ctx.moveTo(1, 2); ctx.lineTo(1, -len + 2); ctx.stroke();
-    // Тело
     const wearC = Math.min(1, S.wear / 100);
     ctx.strokeStyle = `rgb(${Math.round(150 + 90 * wearC)}, ${Math.round(190 - 90 * wearC)}, ${Math.round(140 - 80 * wearC)})`;
     ctx.lineWidth = 4;
@@ -478,7 +616,6 @@ function drawFrame() {
     ctx.restore();
   }
 
-  // Подсветка при успехе
   if (S.flash > 0) {
     ctx.strokeStyle = green;
     ctx.lineWidth = 4;
@@ -491,16 +628,15 @@ function loop(now) {
   const dt = Math.min(0.1, (now - lastT) / 1000);
   lastT = now;
   update(dt);
-  drawFrame();
-  if (S.cooldownUntil && now < S.cooldownUntil + 1000) updateButtons();
+  if (!lockView.hidden && S.tab === 'hack') drawFrame();
   requestAnimationFrame(loop);
 }
 
 // ═══════════════════════════════════════════════
-// УПРАВЛЕНИЕ ОТМЫЧКОЙ
+// УПРАВЛЕНИЕ
 // ═══════════════════════════════════════════════
 function canMovePick() {
-  return S.started && !S.finished && !S.modalOpen && !S.turning && !S.unlocking && S.picks > 0 && S.rot < 1;
+  return S.started && !S.finished && !S.modalOpen && !S.turning && !S.advancing && S.picks > 0 && S.rot < 1 && isLock();
 }
 
 function setAngle(a) {
@@ -513,7 +649,7 @@ function setAngle(a) {
 
 canvas.addEventListener('pointerdown', (e) => {
   if (!canMovePick()) return;
-  initAudio();
+  AudioEngine.init();
   e.preventDefault();
   canvas.setPointerCapture(e.pointerId);
   S.dragging = true;
@@ -527,7 +663,7 @@ canvas.addEventListener('pointermove', (e) => {
   const dx = (e.clientX - S.dragX0) * (VIEW / rect.width);
   setAngle(S.angleBase + dx * CFG.DRAG_SENS);
 });
-const endDrag = () => { S.dragging = false; };
+const endDrag = () => { if (S.dragging) { S.dragging = false; saveRun(); } };
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
@@ -541,26 +677,33 @@ window.addEventListener('blur', turnStop);
 const keysHeld = new Set();
 window.addEventListener('keydown', (e) => {
   if (S.modalOpen) {
-    // Ответ на вопрос цифрами 1–4, продолжить — Enter
     const n = parseInt(e.key, 10);
     const btns = modalOpts.querySelectorAll('.opt-btn');
     if (n >= 1 && n <= btns.length && !btns[n - 1].disabled) btns[n - 1].click();
     else if ((e.key === 'Enter' || e.key === ' ') && modalCont.style.display === 'block') { e.preventDefault(); modalCont.click(); }
     return;
   }
-  if (!S.started) {
-    if (e.key === 'Enter') startBtn.click();
+  if (startOverlay.classList.contains('visible')) {
+    if (e.key === 'Enter') { e.preventDefault(); (continueBtn.hidden ? startBtn : continueBtn).click(); }
     return;
   }
   if (S.finished) {
     if (e.key === 'Enter') restartBtn.click();
     return;
   }
-  if (e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') { toggleSound(); return; }
+  const k = e.key.toLowerCase();
+  if (k === 'm' || k === 'ь') { toggleSound(); return; }
+  if (S.tab !== 'hack') return;
+
+  if (!isLock()) {
+    AudioEngine.init();
+    Terminal.handleKey(e);
+    return;
+  }
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
     e.preventDefault();
     if (canMovePick()) {
-      initAudio();
+      AudioEngine.init();
       const step = (e.shiftKey ? 0.5 : 2) * (e.key === 'ArrowLeft' ? -1 : 1);
       setAngle(S.angle + step);
     }
@@ -571,7 +714,7 @@ window.addEventListener('keydown', (e) => {
     if (!keysHeld.has(e.key)) { keysHeld.add(e.key); turnStart(); }
     return;
   }
-  if ((e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') && !getPinBtn.disabled) getPinBtn.click();
+  if ((k === 'r' || k === 'к') && !getPinBtn.disabled) getPinBtn.click();
 });
 window.addEventListener('keyup', (e) => {
   if (keysHeld.delete(e.key) && keysHeld.size === 0) turnStop();
@@ -581,9 +724,10 @@ window.addEventListener('keyup', (e) => {
 // КОНТРОЛЬНЫЕ ВОПРОСЫ
 // ═══════════════════════════════════════════════
 function nextQuestion() {
-  if (S.usedQs.length >= QUESTIONS.length) S.usedQs = [];
-  let idx;
-  do { idx = Math.floor(Math.random() * QUESTIONS.length); } while (S.usedQs.includes(idx));
+  const pool = QUESTIONS.map((q, i) => i).filter((i) => S.topics.includes(QUESTIONS[i].cat));
+  let fresh = pool.filter((i) => !S.usedQs.includes(i));
+  if (!fresh.length) { S.usedQs = S.usedQs.filter((i) => !pool.includes(i)); fresh = pool; }
+  const idx = fresh[Math.floor(Math.random() * fresh.length)];
   S.usedQs.push(idx);
   return QUESTIONS[idx];
 }
@@ -605,7 +749,7 @@ function openQuestion() {
   const q = nextQuestion();
   const opts = shuffle(q.opts.map((text, i) => ({ text, ok: i === q.ok })));
 
-  modalTitle.textContent = 'ЗАПРОС ИДЕНТИФИКАЦИИ';
+  modalTitle.textContent = `ЗАПРОС ИДЕНТИФИКАЦИИ // ${QUESTION_TOPICS[q.cat]}`;
   modalQ.textContent = q.text;
   modalOpts.innerHTML = '';
   modalRes.textContent = '';
@@ -630,20 +774,25 @@ function openQuestion() {
         S.picks++;
         S.wear = 0;
         S.stats.right++;
+        P.right++;
         updatePicks(true);
         updateWear();
         modalRes.textContent = 'ДОСТУП ПОДТВЕРЖДЁН: ВЫДАНА ОТМЫЧКА (+1)';
         modalRes.classList.add('good');
         Sound.good();
         log('Резерв выдан: +1 отмычка.', 'good');
+        if (P.right >= 10) unlock('erudite');
       } else {
         S.stats.wrong++;
-        S.cooldownUntil = performance.now() + CFG.REQ_COOLDOWN * 1000;
+        P.wrong++;
+        S.cooldownLeft = CFG.REQ_COOLDOWN * 1000;
         modalRes.textContent = `ОТКАЗАНО. ПОВТОРНЫЙ ЗАПРОС ЧЕРЕЗ ${CFG.REQ_COOLDOWN} С`;
         modalRes.classList.add('bad');
         Sound.fail();
         log('Идентификация провалена.', 'bad');
       }
+      saveProfile();
+      saveRun();
       modalCont.style.display = 'block';
       modalCont.focus({ preventScroll: true });
     });
@@ -661,65 +810,169 @@ function closeQuestion() {
 }
 
 getPinBtn.addEventListener('click', () => {
-  initAudio();
+  AudioEngine.init();
   Sound.click();
   if (!S.finished && !S.modalOpen && S.picks <= 0) openQuestion();
 });
 modalCont.addEventListener('click', closeQuestion);
 
 // ═══════════════════════════════════════════════
-// СТАРТ / ФИНАЛ
+// СОХРАНЕНИЕ ПРОГРЕССА
 // ═══════════════════════════════════════════════
-function bestKey() { return 'oz.best.' + S.diff; }
-
-function showBest() {
-  const best = JSON.parse(localStorage.getItem(bestKey()) || 'null');
-  bestLine.textContent = best ? `РЕКОРД (${cfg().name}): ${fmtTime(best.time)} · сломано отмычек: ${best.broken}` : '';
+function saveRun() {
+  if (!S.started || S.finished) return;
+  const data = {
+    v: 2,
+    diff: S.diff,
+    stage: S.stage,
+    done: S.done,
+    picks: S.picks,
+    wear: S.wear,
+    angle: S.angle,
+    target: S.target,
+    term: S.term,
+    termLockLeft: S.termLockLeft,
+    usedQs: S.usedQs,
+    cooldownLeft: S.cooldownLeft,
+    elapsed: S.elapsed,
+    stats: S.stats,
+    journal: S.journal.slice(-100),
+    saved: Date.now(),
+  };
+  // Этап, завершённый прямо перед перезагрузкой, засчитываем
+  if (S.advancing) data.advancing = true;
+  try { localStorage.setItem(RUN_KEY, JSON.stringify(data)); } catch (e) {}
 }
 
+function clearRun() { localStorage.removeItem(RUN_KEY); }
+
+function loadRun() {
+  const r = loadJSON(RUN_KEY, null);
+  if (!r || r.v !== 2 || !DIFFS[r.diff]) return null;
+  return r;
+}
+
+function applyRun(r) {
+  S.diff = r.diff;
+  S.started = false;
+  S.finished = false;
+  S.stage = r.stage;
+  S.done = r.done;
+  S.picks = r.picks;
+  S.wear = r.wear;
+  S.angle = r.angle;
+  S.target = r.target;
+  S.term = r.term;
+  S.termLockLeft = r.termLockLeft || 0;
+  S.usedQs = r.usedQs || [];
+  S.cooldownLeft = r.cooldownLeft || 0;
+  S.elapsed = r.elapsed || 0;
+  S.stats = Object.assign({ broken: 0, right: 0, wrong: 0, lockouts: 0 }, r.stats);
+  S.journal = r.journal || [];
+  S.advancing = false;
+  buildBadges();
+  updatePicks(false);
+  updateWear();
+  timerEl.textContent = fmtTime(S.elapsed);
+  renderLog();
+  if (r.advancing && S.done[S.stage]) {
+    // Сохранились в момент перехода — сразу переходим к следующему этапу
+    if (S.stage + 1 < cfg().stages.length) { S.stage++; enterStage(true); }
+    else { enterStage(false); }
+  } else {
+    enterStage(false);
+  }
+}
+
+window.addEventListener('pagehide', () => { saveRun(); saveProfile(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { turnStop(); saveRun(); saveProfile(); }
+});
+
+// ═══════════════════════════════════════════════
+// СТАРТ / ФИНАЛ
+// ═══════════════════════════════════════════════
 function resetGame() {
+  S.diff = chosenDiff;
   S.started = false;
   S.finished = false;
   S.modalOpen = false;
-  S.level = 0;
-  S.done = cfg().levels.map(() => false);
+  S.stage = 0;
+  S.done = cfg().stages.map(() => false);
   S.picks = cfg().picks;
   S.wear = 0;
   S.angle = 0;
   S.rot = 0;
   S.turning = false;
   S.jammed = false;
-  S.unlocking = false;
+  S.advancing = false;
   S.flash = 0;
-  S.cooldownUntil = 0;
-  S.stats = { broken: 0, right: 0, wrong: 0 };
-  newTarget();
+  S.term = null;
+  S.termLockLeft = 0;
+  S.cooldownLeft = 0;
+  S.elapsed = 0;
+  S.stats = { broken: 0, right: 0, wrong: 0, lockouts: 0 };
+  S.journal = [];
   buildBadges();
-  updateBadges();
+  enterStage(true);
   updatePicks(false);
   updateWear();
-  setLamp('');
-  hackBar.style.width = '0%';
-  hackTxt.textContent = 'ПРОВЕРНУТЬ (УДЕРЖ.)';
   timerEl.textContent = '00:00';
-  logEl.innerHTML = '';
+  renderLog();
   canvas.classList.remove('success-glow');
   updateButtons();
 }
 
-function startGame() {
-  initAudio();
+function showStartScreen() {
+  const saved = loadRun();
+  continueBtn.hidden = !saved;
+  if (saved) {
+    const d = DIFFS[saved.diff];
+    continueBtn.innerHTML = `&gt; ПРОДОЛЖИТЬ: ${d.name}, ЭТАП ${saved.stage + 1}/${d.stages.length}, ${fmtTime(saved.elapsed)}`;
+    startBtn.classList.add('secondary');
+    applyRun(saved);
+  } else {
+    startBtn.classList.remove('secondary');
+    resetGame();
+  }
+  showBest();
+  startOverlay.classList.add('visible');
+}
+
+function beginPlaying() {
+  AudioEngine.init();
   Sound.click();
   startOverlay.classList.remove('visible');
   S.started = true;
-  S.startTime = performance.now();
-  log(`Режим «${cfg().name}». Отмычек: ${S.picks}. Допуск ±${tol()}°.`);
+  switchTab('hack');
   updateButtons();
+  if (isLock()) resizeCanvas();
 }
 
-function rankFor(broken, wrong) {
-  const score = broken + wrong * 0.5;
-  if (score === 0) return 'ПРИЗРАК — ни одной сломанной отмычки';
+function startNew() {
+  clearRun();
+  resetGame();
+  P.runs++;
+  saveProfile();
+  beginPlaying();
+  log(`Режим «${cfg().name}». Отмычек: ${S.picks}. Этапов: ${cfg().stages.length}.`);
+  log(`${stageLabel(0)}: допуск ±${tol()}°.`);
+  saveRun();
+}
+
+function continueRun() {
+  beginPlaying();
+  log('Сеанс восстановлен.');
+}
+
+function showBest() {
+  const best = P.best[chosenDiff];
+  bestLine.textContent = best ? `РЕКОРД (${DIFFS[chosenDiff].name}): ${fmtTime(best.time)} · сломано отмычек: ${best.broken}` : '';
+}
+
+function rankFor(broken, wrong, lockouts) {
+  const score = broken + wrong * 0.5 + lockouts;
+  if (score === 0) return 'ПРИЗРАК';
   if (score <= 1) return 'ПРОФЕССИОНАЛ';
   if (score <= 3) return 'ВЗЛОМЩИК';
   return 'ГРУБАЯ СИЛА';
@@ -728,21 +981,32 @@ function rankFor(broken, wrong) {
 function finishGame() {
   S.finished = true;
   turnStop();
+  clearRun();
   updateButtons();
   Sound.win();
 
   const time = S.elapsed;
-  const prev = JSON.parse(localStorage.getItem(bestKey()) || 'null');
+  const prev = P.best[S.diff];
   const isRecord = !prev || time < prev.time;
-  if (isRecord) localStorage.setItem(bestKey(), JSON.stringify({ time, broken: S.stats.broken }));
+  if (isRecord) P.best[S.diff] = { time, broken: S.stats.broken };
+  const rank = rankFor(S.stats.broken, S.stats.wrong, S.stats.lockouts);
+
+  P.finished++;
+  P.history.unshift({ d: Date.now(), diff: S.diff, time, broken: S.stats.broken, rank });
+  P.history = P.history.slice(0, 20);
+  saveProfile();
+
+  const gained = [
+    'first',
+    S.stats.broken === 0 && 'ghost',
+    S.diff === 'hard' && 'master',
+    S.diff !== 'easy' && time < 120000 && 'speed',
+    P.finished >= 10 && 'veteran',
+  ].filter((id) => id && unlock(id)).map((id) => ACHIEVEMENTS.find((a) => a.id === id));
 
   $('endTitle').textContent = 'ДОСТУП РАЗРЕШЁН';
   $('endMsg').innerHTML = '';
-  [
-    'ВСЕ ЗАМКИ ВСКРЫТЫ.',
-    `РЕЖИМ: ${cfg().name}`,
-    `РАНГ: ${rankFor(S.stats.broken, S.stats.wrong)}`,
-  ].forEach((t, i) => {
+  ['ВСЕ СИСТЕМЫ ВЗЛОМАНЫ.', `РЕЖИМ: ${cfg().name}`, `РАНГ: ${rank}`].forEach((t, i) => {
     const p = document.createElement('p');
     p.className = 'line-reveal';
     p.style.animationDelay = (0.3 + i * 0.6) + 's';
@@ -753,48 +1017,204 @@ function finishGame() {
   $('stats').innerHTML = `
     <div class="stat"><span>ВРЕМЯ</span><b>${fmtTime(time)}${isRecord ? ' ★' : ''}</b></div>
     <div class="stat"><span>СЛОМАНО</span><b>${S.stats.broken}</b></div>
-    <div class="stat"><span>ОТВЕТЫ</span><b>${S.stats.right}/${S.stats.right + S.stats.wrong}</b></div>
+    <div class="stat"><span>БЛОКИРОВКИ</span><b>${S.stats.lockouts}</b></div>
   `;
-  if (isRecord && prev) log('Новый рекорд!', 'good');
+  $('newAch').innerHTML = gained.map((a) => `<div>★ ${a.name} — ${a.desc}</div>`).join('');
+  log(isRecord ? `Взлом завершён за ${fmtTime(time)}. Новый рекорд!` : `Взлом завершён за ${fmtTime(time)}.`, 'good');
 
   winOverlay.classList.add('visible');
   startRain();
 }
 
-startBtn.addEventListener('click', startGame);
+startBtn.addEventListener('click', startNew);
+continueBtn.addEventListener('click', continueRun);
 restartBtn.addEventListener('click', () => {
   Sound.click();
   winOverlay.classList.remove('visible');
   stopRain();
-  resetGame();
-  showBest();
-  startOverlay.classList.add('visible');
+  showStartScreen();
+});
+$('statsLinkBtn').addEventListener('click', () => {
+  AudioEngine.init();
+  Sound.click();
+  startOverlay.classList.remove('visible');
+  switchTab('stat');
 });
 
+function selectDiff(d) {
+  chosenDiff = d;
+  localStorage.setItem('oz.diff', d);
+  document.querySelectorAll('.diff-btn').forEach((x) => {
+    const on = x.dataset.diff === d;
+    x.classList.toggle('active', on);
+    x.setAttribute('aria-checked', on);
+  });
+}
+
 document.querySelectorAll('.diff-btn').forEach((b) => {
-  b.classList.toggle('active', b.dataset.diff === S.diff);
-  b.setAttribute('aria-checked', b.dataset.diff === S.diff);
   b.addEventListener('click', () => {
-    initAudio();
+    AudioEngine.init();
     Sound.key();
-    S.diff = b.dataset.diff;
-    localStorage.setItem('oz.diff', S.diff);
-    document.querySelectorAll('.diff-btn').forEach((x) => {
-      x.classList.toggle('active', x === b);
-      x.setAttribute('aria-checked', x === b);
-    });
-    resetGame();
+    selectDiff(b.dataset.diff);
+    if (continueBtn.hidden) resetGame();
     showBest();
   });
 });
 
+function buildTopics() {
+  const box = $('topics');
+  box.innerHTML = '';
+  Object.entries(QUESTION_TOPICS).forEach(([id, name]) => {
+    const b = document.createElement('button');
+    b.className = 'chip topic-btn' + (S.topics.includes(id) ? ' active' : '');
+    b.textContent = name;
+    b.setAttribute('aria-pressed', S.topics.includes(id));
+    b.addEventListener('click', () => {
+      AudioEngine.init();
+      Sound.key();
+      if (S.topics.includes(id)) {
+        if (S.topics.length === 1) { toast('Нужна хотя бы одна тема'); return; }
+        S.topics = S.topics.filter((t) => t !== id);
+      } else {
+        S.topics.push(id);
+      }
+      localStorage.setItem('oz.topics', JSON.stringify(S.topics));
+      buildTopics();
+    });
+    box.appendChild(b);
+  });
+}
+
 function toggleSound() {
-  soundOn = !soundOn;
-  localStorage.setItem('oz.sound', soundOn ? 'on' : 'off');
+  AudioEngine.init();
+  AudioEngine.setEnabled(!AudioEngine.enabled);
   updateSoundBtn();
-  if (soundOn) { initAudio(); Sound.click(); }
+  if (AudioEngine.enabled) Sound.click();
 }
 soundBtn.addEventListener('click', toggleSound);
+
+// ═══════════════════════════════════════════════
+// ВКЛАДКИ: СТАТ / ИНВ / ДАННЫЕ
+// ═══════════════════════════════════════════════
+function switchTab(tab) {
+  if (tab !== 'hack') turnStop();
+  S.tab = tab;
+  document.querySelectorAll('.tab').forEach((t) => {
+    const on = t.dataset.tab === tab;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on);
+  });
+  document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('active', p.dataset.pane === tab));
+  if (tab === 'stat') renderStat();
+  if (tab === 'inv') renderInv();
+  if (tab === 'data') renderData();
+  if (tab === 'hack') {
+    if (!S.started && !S.finished) showStartScreen();
+    else if (isLock()) resizeCanvas();
+  }
+}
+
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+  AudioEngine.init();
+  Sound.key();
+  switchTab(t.dataset.tab);
+}));
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function bar(pct, cls = '') {
+  const n = 10;
+  const on = Math.round(pct / 100 * n);
+  return `<span class="tbar ${cls}">${'█'.repeat(on)}${'░'.repeat(n - on)}</span>`;
+}
+
+function renderStat() {
+  const answers = P.right + P.wrong;
+  const rows = [
+    ['ВЗЛОМОВ НАЧАТО', P.runs],
+    ['ВЗЛОМОВ ЗАВЕРШЕНО', P.finished],
+    ['ЗАМКОВ ВСКРЫТО', P.locks],
+    ['ТЕРМИНАЛОВ ВЗЛОМАНО', P.terms],
+    ['ОТМЫЧЕК СЛОМАНО', P.broken],
+    ['БЛОКИРОВОК ТЕРМИНАЛА', P.lockouts],
+    ['ВЕРНЫХ ОТВЕТОВ', answers ? `${P.right}/${answers} (${Math.round(P.right / answers * 100)}%)` : '—'],
+    ['ВРЕМЯ ВО ВЗЛОМЕ', fmtLong(P.playMs)],
+  ];
+  const best = Object.entries(DIFFS).map(([id, d]) => {
+    const b = P.best[id];
+    return `<div class="rec"><span>${d.name}</span><b>${b ? fmtTime(b.time) : '--:--'}</b></div>`;
+  }).join('');
+  const got = ACHIEVEMENTS.filter((a) => P.ach[a.id]).length;
+  $('statPane').innerHTML = `
+    <h3>РЕКОРДЫ</h3>
+    <div class="records">${best}</div>
+    <h3>ПОКАЗАТЕЛИ</h3>
+    <div class="kv">${rows.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>
+    <h3>ДОСТИЖЕНИЯ ${got}/${ACHIEVEMENTS.length}</h3>
+    <div class="ach">${ACHIEVEMENTS.map((a) => `
+      <div class="ach-item ${P.ach[a.id] ? 'got' : ''}">
+        <span class="ach-icon">${P.ach[a.id] ? '★' : '☆'}</span>
+        <span><b>${a.name}</b><br><small>${a.desc}</small></span>
+      </div>`).join('')}
+    </div>`;
+}
+
+function renderInv() {
+  const inRun = S.started || loadRun();
+  let picks = '';
+  if (!inRun) {
+    picks = '<div class="muted">Нет активного взлома.</div>';
+  } else if (S.picks <= 0) {
+    picks = '<div class="muted">ПУСТО — запроси резерв.</div>';
+  } else {
+    for (let i = 0; i < S.picks; i++) {
+      const hp = i === 0 ? Math.round(100 - S.wear) : 100;
+      picks += `<div class="inv-item"><span>ОТМЫЧКА #${i + 1}${i === 0 ? ' (В ЗАМКЕ)' : ''}</span>${bar(hp, hp < 35 ? 'low' : '')}<b>${hp}%</b></div>`;
+    }
+  }
+  const keys = cfg().stages.map((st, i) =>
+    `<div class="inv-item ${S.done[i] || i === S.stage ? '' : 'dim'}"><span>${S.done[i] ? '✓' : '·'} ${stageLabel(i)}</span><b>${S.done[i] ? 'ВЗЛОМАН' : i === S.stage ? 'ТЕКУЩИЙ' : 'ЗАКРЫТ'}</b></div>`).join('');
+  $('invPane').innerHTML = `
+    <h3>ОТМЫЧКИ</h3>
+    <div class="inv-list">${picks}</div>
+    <h3>КЛЮЧИ ДОСТУПА · ${cfg().name}</h3>
+    <div class="inv-list">${inRun ? keys : '<div class="muted">—</div>'}</div>
+    <h3>ТЕКУЩИЙ ВЗЛОМ</h3>
+    <div class="kv">
+      <div><span>ВРЕМЯ</span><b>${fmtTime(S.elapsed)}</b></div>
+      <div><span>СЛОМАНО ОТМЫЧЕК</span><b>${S.stats.broken}</b></div>
+      <div><span>ОТВЕТЫ</span><b>${S.stats.right}/${S.stats.right + S.stats.wrong}</b></div>
+      <div><span>БЛОКИРОВКИ ТЕРМИНАЛА</span><b>${S.stats.lockouts}</b></div>
+    </div>`;
+}
+
+let resetArmed = false;
+function renderData() {
+  const hist = P.history.length
+    ? P.history.map((h) => {
+        const d = new Date(h.d);
+        const date = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        return `<div class="hist"><span>${date}</span><span>${DIFFS[h.diff] ? DIFFS[h.diff].name : h.diff}</span><b>${fmtTime(h.time)}</b><span>✕${h.broken}</span><span class="hist-rank">${esc(h.rank)}</span></div>`;
+      }).join('')
+    : '<div class="muted">Пока пусто.</div>';
+  const journal = S.journal.length
+    ? S.journal.slice().reverse().map((l) => `<div class="${l.k}"><span class="jt">${l.t}</span> ${esc(l.m)}</div>`).join('')
+    : '<div class="muted">Пока пусто.</div>';
+  $('dataPane').innerHTML = `
+    <h3>ЖУРНАЛ ТЕКУЩЕГО ВЗЛОМА</h3>
+    <div class="journal">${journal}</div>
+    <h3>ИСТОРИЯ ВЗЛОМОВ</h3>
+    <div class="history">${hist}</div>
+    <button class="link-btn danger" id="resetStatsBtn">${resetArmed ? '[ ТОЧНО? НАЖМИ ЕЩЁ РАЗ ]' : '[ СБРОСИТЬ СТАТИСТИКУ ]'}</button>`;
+  $('resetStatsBtn').addEventListener('click', () => {
+    if (!resetArmed) { resetArmed = true; renderData(); setTimeout(() => { resetArmed = false; if (S.tab === 'data') renderData(); }, 3000); return; }
+    resetArmed = false;
+    Object.assign(P, emptyProfile());
+    saveProfile();
+    toast('Статистика сброшена');
+    renderData();
+  });
+}
 
 // ═══════════════════════════════════════════════
 // ЭФФЕКТЫ: загрузочный лог и цифровой дождь
@@ -803,7 +1223,7 @@ const BOOT_LINES = [
   'ROBUST-OS BIOS v4.1 ............ OK',
   'ПАМЯТЬ: 64K ..................... OK',
   'ДАТЧИК ДАВЛЕНИЯ ЦИЛИНДРА ........ OK',
-  'ЗАМКИ В ЦЕПИ .................... ЗАБЛОКИРОВАНЫ',
+  'ЗАМКИ И ТЕРМИНАЛЫ ............... ЗАБЛОКИРОВАНЫ',
   'ЗАГРУЗКА УТИЛИТЫ ВЗЛОМА ......... ГОТОВО',
 ];
 
@@ -855,10 +1275,10 @@ function stopRain() {
 // ═══════════════════════════════════════════════
 // ИНИЦИАЛИЗАЦИЯ
 // ═══════════════════════════════════════════════
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+window.addEventListener('resize', () => { if (isLock()) resizeCanvas(); });
+selectDiff(S.diff);
+buildTopics();
 updateSoundBtn();
-resetGame();
-showBest();
+showStartScreen();
 runBoot();
 requestAnimationFrame(loop);
