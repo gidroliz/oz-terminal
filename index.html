@@ -12,14 +12,15 @@
   <meta property="og:site_name" content="OZ-TERMINAL">
   <meta property="og:title" content="OZ-TERMINAL // Взлом">
   <meta property="og:description" content="Вскрой замки отмычкой и подбери пароли к терминалам. Пять режимов, от новичка до бесконечного взлома.">
-  <meta property="og:image" content="https://oz-terminal.vercel.app/og.png">
+  <meta property="og:image" content="https://oz-terminal.vercel.app/og.jpg">
+  <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:locale" content="ru_RU">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="OZ-TERMINAL // Взлом">
   <meta name="twitter:description" content="Вскрой замки отмычкой и подбери пароли к терминалам.">
-  <meta name="twitter:image" content="https://oz-terminal.vercel.app/og.png">
+  <meta name="twitter:image" content="https://oz-terminal.vercel.app/og.jpg">
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='28' fill='%23040a04' stroke='%2333ff33' stroke-width='4'/><rect x='29' y='14' width='6' height='26' rx='3' fill='%2333ff33'/><circle cx='32' cy='44' r='5' fill='%2333ff33'/></svg>">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -41,41 +42,49 @@
 <!-- ═════════ СТАРТОВЫЙ ЭКРАН ═════════ -->
 <div class="modal-overlay visible" id="startOverlay">
   <div class="modal-box modal-green">
-    <h2>OZ INDUSTRIES™ // ТЕРМИНАЛ ВЗЛОМА</h2>
+    <h2 data-i18n="start.title">OZ INDUSTRIES™ // ТЕРМИНАЛ ВЗЛОМА</h2>
     <div class="boot-log" id="bootLog" aria-hidden="true"></div>
 
     <details class="howto" id="howto">
-      <summary>КАК ИГРАТЬ</summary>
-      <div class="howto-title">ЗАМОК</div>
-      <div class="howto-row"><span class="howto-key">1</span><span><b>Двигай отмычку</b> — тяни по замку влево/вправо (или ← →).</span></div>
-      <div class="howto-row"><span class="howto-key">2</span><span><b>Зажми «ПРОВЕРНУТЬ»</b> (или пробел). Чем ближе отмычка к нужной точке, тем дальше проворачивается цилиндр.</span></div>
-      <div class="howto-row"><span class="howto-key">3</span><span><b>Заклинило</b> — всё трясётся и скрежещет? <b>Отпусти!</b> Отмычка изнашивается и ломается.</span></div>
-      <div class="howto-title">ТЕРМИНАЛ</div>
-      <div class="howto-row"><span class="howto-key">4</span><span>Найди <b>пароль</b> среди слов в дампе памяти. После ошибки терминал покажет, сколько букв стоят на своих местах.</span></div>
-      <div class="howto-row"><span class="howto-key">5</span><span><b>Парные скобки</b> в одной строке — <b>(…)</b>, <b>[…]</b>, <b>{…}</b>, <b>&lt;…&gt;</b> — убирают ложное слово или восстанавливают попытки.</span></div>
-      <div class="howto-title">РЕЗЕРВ</div>
-      <div class="howto-row"><span class="howto-key">6</span><span>Ответь на контрольный вопрос и получи <b>отмычку</b> или <b>сканер</b>. Сканер подсвечивает зону на замке или убирает ложное слово в терминале.</span></div>
+      <summary data-i18n="start.howto">КАК ИГРАТЬ</summary>
+      <div class="howto-title" data-i18n="howto.lock">ЗАМОК</div>
+      <div class="howto-row"><span class="howto-key">1</span><span data-i18n-html="howto.1"></span></div>
+      <div class="howto-row"><span class="howto-key">2</span><span data-i18n-html="howto.2"></span></div>
+      <div class="howto-row"><span class="howto-key">3</span><span data-i18n-html="howto.3"></span></div>
+      <div class="howto-title" data-i18n="howto.term">ТЕРМИНАЛ</div>
+      <div class="howto-row"><span class="howto-key">4</span><span data-i18n-html="howto.4"></span></div>
+      <div class="howto-row"><span class="howto-key">5</span><span data-i18n-html="howto.5"></span></div>
+      <div class="howto-title" data-i18n="howto.reserve">РЕЗЕРВ</div>
+      <div class="howto-row"><span class="howto-key">6</span><span data-i18n-html="howto.6"></span></div>
     </details>
 
     <div class="opt-group modes" role="radiogroup" aria-label="Режим">
-      <span class="opt-label">РЕЖИМ:</span>
-      <button class="chip diff-btn" data-diff="easy" role="radio">НОВИЧОК</button>
-      <button class="chip diff-btn" data-diff="normal" role="radio">ВЗЛОМЩИК</button>
-      <button class="chip diff-btn" data-diff="hard" role="radio">МАСТЕР</button>
-      <button class="chip diff-btn" data-diff="alarm" role="radio">ТРЕВОГА</button>
-      <button class="chip diff-btn" data-diff="endless" role="radio">БЕСКОНЕЧНЫЙ</button>
+      <span class="opt-label" data-i18n="start.mode">РЕЖИМ:</span>
+      <button class="chip diff-btn" data-diff="easy" role="radio" data-i18n="mode.easy">НОВИЧОК</button>
+      <button class="chip diff-btn" data-diff="normal" role="radio" data-i18n="mode.normal">ВЗЛОМЩИК</button>
+      <button class="chip diff-btn" data-diff="hard" role="radio" data-i18n="mode.hard">МАСТЕР</button>
+      <button class="chip diff-btn" data-diff="alarm" role="radio" data-i18n="mode.alarm">ТРЕВОГА</button>
+      <button class="chip diff-btn" data-diff="endless" role="radio" data-i18n="mode.endless">БЕСКОНЕЧНЫЙ</button>
     </div>
     <div class="mode-desc" id="modeDesc"></div>
     <div class="opt-group" aria-label="Темы вопросов">
-      <span class="opt-label">ВОПРОСЫ:</span>
+      <span class="opt-label" data-i18n="start.topics">ВОПРОСЫ:</span>
       <span class="topics" id="topics"></span>
+    </div>
+
+    <div class="opt-group" aria-label="Language">
+      <span class="opt-label" data-i18n="start.lang">ЯЗЫК:</span>
+      <span class="topics">
+        <button class="chip lang-btn" data-lang="ru">РУССКИЙ</button>
+        <button class="chip lang-btn" data-lang="en">ENGLISH</button>
+      </span>
     </div>
 
     <div class="best-line" id="bestLine"></div>
 
     <button class="primary-btn" id="continueBtn" hidden>&gt; ПРОДОЛЖИТЬ ВЗЛОМ</button>
-    <button class="primary-btn" id="startBtn">&gt; НОВЫЙ ВЗЛОМ</button>
-    <button class="link-btn" id="statsLinkBtn">[ СТАТИСТИКА И НАСТРОЙКИ ]</button>
+    <button class="primary-btn" id="startBtn" data-i18n="start.new">&gt; НОВЫЙ ВЗЛОМ</button>
+    <button class="link-btn" id="statsLinkBtn" data-i18n="start.statsLink">[ СТАТИСТИКА И НАСТРОЙКИ ]</button>
   </div>
 </div>
 
@@ -87,17 +96,17 @@
       <span class="status-name">OZ ST-3000</span>
       <span class="status-time" id="timer">00:00</span>
       <span class="status-btns">
-        <button class="sound-btn" id="pauseBtn" aria-label="Пауза" title="Пауза (P / Esc)">❚❚</button>
-        <button class="sound-btn" id="soundBtn" aria-label="Звук" title="Звук (M)">♪ ВКЛ</button>
+        <button class="sound-btn" id="pauseBtn" data-i18n-title="btn.pauseTitle">❚❚</button>
+        <button class="sound-btn" id="soundBtn" data-i18n-title="btn.soundTitle">♪ ВКЛ</button>
       </span>
     </div>
 
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="hack" role="tab">ВЗЛОМ</button>
-      <button class="tab" data-tab="stat" role="tab">СТАТ</button>
-      <button class="tab" data-tab="inv" role="tab">ИНВ</button>
-      <button class="tab" data-tab="data" role="tab">ДАННЫЕ</button>
-      <button class="tab" data-tab="cfg" role="tab">НАСТР</button>
+      <button class="tab active" data-tab="hack" role="tab" data-i18n="tab.hack">ВЗЛОМ</button>
+      <button class="tab" data-tab="stat" role="tab" data-i18n="tab.stat">СТАТ</button>
+      <button class="tab" data-tab="inv" role="tab" data-i18n="tab.inv">ИНВ</button>
+      <button class="tab" data-tab="data" role="tab" data-i18n="tab.data">ДАННЫЕ</button>
+      <button class="tab" data-tab="cfg" role="tab" data-i18n="tab.cfg">НАСТР</button>
     </nav>
 
     <div class="panes">
@@ -107,11 +116,12 @@
         <div class="level-indicator" id="levelIndicator"></div>
 
         <div class="lock-area" id="lockArea">
+          <div class="kind-tag" id="kindTag" hidden></div>
           <div id="lockView">
             <div class="lock-canvas-wrap">
               <canvas id="lockCanvas" width="240" height="240" aria-label="Замок. Тяните влево и вправо, чтобы двигать отмычку."></canvas>
             </div>
-            <div class="hint-text" id="hintText">[ ТЯНИ ВЛЕВО / ВПРАВО ]</div>
+            <div class="hint-text" id="hintText"></div>
           </div>
           <div id="termView" class="term-view" hidden></div>
         </div>
@@ -120,20 +130,20 @@
           <div class="lamp" id="lamp"></div>
           <button class="hack-btn" id="hackBtn">
             <div class="hack-btn-bar" id="hackBar"></div>
-            <span id="hackBtnText">ПРОВЕРНУТЬ (УДЕРЖ.)</span>
+            <span id="hackBtnText"></span>
           </button>
         </div>
 
         <div class="inventory">
           <div class="inv-left">
-            <span class="inv-label">ОТМЫЧКИ</span>
+            <span class="inv-label" data-i18n="inv.label">ОТМЫЧКИ</span>
             <span class="pick-count" id="pickCount">0</span>
             <div class="wear" title="Состояние текущей отмычки">
               <div class="wear-bar" id="wearBar"></div>
             </div>
           </div>
-          <button class="get-pin-btn scan-btn" id="scanBtn" title="Сканер (S)">⌖ <span id="scanCount">0</span></button>
-          <button class="get-pin-btn" id="getPinBtn" title="Резерв (R)">+ РЕЗЕРВ</button>
+          <button class="get-pin-btn scan-btn" id="scanBtn" data-i18n-title="btn.scanTitle">⌖ <span id="scanCount">0</span></button>
+          <button class="get-pin-btn" id="getPinBtn" data-i18n-title="btn.reserveTitle"></button>
         </div>
 
         <div class="log" id="log" aria-live="polite"></div>
@@ -149,41 +159,51 @@
       <!-- НАСТРОЙКИ -->
       <section class="pane" data-pane="cfg">
         <div class="pane-scroll">
-          <h3>ЗВУК</h3>
+          <h3 data-i18n="cfg.lang">ЯЗЫК</h3>
+          <div class="setting">
+            <span data-i18n="cfg.lang">ЯЗЫК</span>
+            <span class="themes">
+              <button class="chip lang-btn" data-lang="ru">RU</button>
+              <button class="chip lang-btn" data-lang="en">EN</button>
+            </span>
+          </div>
+
+          <h3 data-i18n="cfg.sound">ЗВУК</h3>
           <label class="setting">
-            <span>ГРОМКОСТЬ</span>
+            <span data-i18n="cfg.volume">ГРОМКОСТЬ</span>
             <input type="range" id="setVolume" min="0" max="100" step="5">
             <b id="setVolumeVal">80%</b>
           </label>
-          <label class="setting"><span>ВИБРАЦИЯ</span><input type="checkbox" id="setVibro"><i class="toggle"></i></label>
+          <label class="setting"><span data-i18n="cfg.vibro">ВИБРАЦИЯ</span><input type="checkbox" id="setVibro"><i class="toggle"></i></label>
 
-          <h3>ЭКРАН</h3>
+          <h3 data-i18n="cfg.screen">ЭКРАН</h3>
           <div class="setting">
-            <span>ЦВЕТ</span>
+            <span data-i18n="cfg.color">ЦВЕТ</span>
             <span class="themes" id="themes">
-              <button class="chip theme-btn" data-theme="green" style="--sw:#33ff33">ЗЕЛ</button>
-              <button class="chip theme-btn" data-theme="amber" style="--sw:#ffb000">ЯНТ</button>
-              <button class="chip theme-btn" data-theme="white" style="--sw:#e8f4ff">БЕЛ</button>
-              <button class="chip theme-btn" data-theme="cyan" style="--sw:#33e0ff">ГОЛ</button>
+              <button class="chip theme-btn" data-theme="green" style="--sw:#33ff33" data-i18n="theme.green">ЗЕЛ</button>
+              <button class="chip theme-btn" data-theme="amber" style="--sw:#ffb000" data-i18n="theme.amber">ЯНТ</button>
+              <button class="chip theme-btn" data-theme="white" style="--sw:#e8f4ff" data-i18n="theme.white">БЕЛ</button>
+              <button class="chip theme-btn" data-theme="cyan" style="--sw:#33e0ff" data-i18n="theme.cyan">ГОЛ</button>
             </span>
           </div>
-          <label class="setting"><span>ЭФФЕКТЫ ЭЛТ (ПОЛОСЫ, МЕРЦАНИЕ)</span><input type="checkbox" id="setCrt"><i class="toggle"></i></label>
-          <label class="setting"><span>ЭФФЕКТ ПЕЧАТИ В ТЕРМИНАЛЕ</span><input type="checkbox" id="setTyping"><i class="toggle"></i></label>
-          <label class="setting"><span>КРУПНЫЙ ШРИФТ</span><input type="checkbox" id="setLarge"><i class="toggle"></i></label>
+          <label class="setting"><span data-i18n="cfg.crt">ЭФФЕКТЫ ЭЛТ</span><input type="checkbox" id="setCrt"><i class="toggle"></i></label>
+          <label class="setting"><span data-i18n="cfg.typing">ЭФФЕКТ ПЕЧАТИ</span><input type="checkbox" id="setTyping"><i class="toggle"></i></label>
+          <label class="setting"><span data-i18n="cfg.large">КРУПНЫЙ ШРИФТ</span><input type="checkbox" id="setLarge"><i class="toggle"></i></label>
 
-          <h3>ОБУЧЕНИЕ</h3>
-          <button class="primary-btn secondary" id="tutorialResetBtn">ПРОЙТИ ОБУЧЕНИЕ ЗАНОВО</button>
-          <div class="muted setting-note">Подсказки появятся в следующем новом взломе.</div>
+          <h3 data-i18n="cfg.tutorial">ОБУЧЕНИЕ</h3>
+          <button class="primary-btn secondary" id="tutorialResetBtn" data-i18n="cfg.tutorialReset">ПРОЙТИ ОБУЧЕНИЕ ЗАНОВО</button>
+          <div class="muted setting-note" data-i18n="cfg.tutorialNote"></div>
 
-          <h3>УПРАВЛЕНИЕ</h3>
+          <h3 data-i18n="cfg.controls">УПРАВЛЕНИЕ</h3>
           <div class="kv keys">
-            <div><span>← →</span><b>двигать отмычку (Shift — точнее)</b></div>
-            <div><span>ПРОБЕЛ / ↑</span><b>провернуть цилиндр</b></div>
-            <div><span>СТРЕЛКИ + ENTER</span><b>выбор слова в терминале</b></div>
-            <div><span>S</span><b>сканер</b></div>
-            <div><span>R</span><b>резерв</b></div>
-            <div><span>P / ESC</span><b>пауза</b></div>
-            <div><span>M</span><b>звук</b></div>
+            <div><span>← →</span><b data-i18n="keys.move"></b></div>
+            <div><span data-i18n="keys.space"></span><b data-i18n="keys.turn"></b></div>
+            <div><span data-i18n="keys.arrows"></span><b data-i18n="keys.term"></b></div>
+            <div><span>X</span><b data-i18n="keys.mark"></b></div>
+            <div><span>S</span><b data-i18n="keys.scan"></b></div>
+            <div><span>R</span><b data-i18n="keys.reserve"></b></div>
+            <div><span>P / ESC</span><b data-i18n="keys.pause"></b></div>
+            <div><span>M</span><b data-i18n="keys.sound"></b></div>
           </div>
         </div>
       </section>
@@ -194,27 +214,36 @@
 <!-- ═════════ КОНТРОЛЬНЫЙ ВОПРОС ═════════ -->
 <div class="modal-overlay" id="questionOverlay">
   <div class="modal-box">
-    <h2 id="modalTitle">ЗАПРОС ИДЕНТИФИКАЦИИ</h2>
+    <h2 id="modalTitle"></h2>
     <div class="modal-question-text" id="modalQ"></div>
     <div class="modal-options" id="modalOpts"></div>
     <div class="modal-result" id="modalResult"></div>
     <div class="modal-rewards" id="modalRewards" hidden>
-      <button class="reward-btn" data-reward="pick"><span class="opt-key">1</span>+1 ОТМЫЧКА</button>
-      <button class="reward-btn" data-reward="scan"><span class="opt-key">2</span>+1 СКАНЕР</button>
+      <button class="reward-btn" data-reward="pick"><span class="opt-key">1</span><span data-i18n="reward.pick">+1 ОТМЫЧКА</span></button>
+      <button class="reward-btn" data-reward="scan"><span class="opt-key">2</span><span data-i18n="reward.scan">+1 СКАНЕР</span></button>
     </div>
-    <button class="modal-continue-btn" id="modalContBtn">ПРОДОЛЖИТЬ</button>
+    <button class="modal-continue-btn" id="modalContBtn" data-i18n="btn.continue">ПРОДОЛЖИТЬ</button>
   </div>
 </div>
 
 <!-- ═════════ ПАУЗА ═════════ -->
 <div class="modal-overlay" id="pauseOverlay">
   <div class="modal-box modal-green pause-box">
-    <h2>ПАУЗА</h2>
+    <h2 data-i18n="pause.title">ПАУЗА</h2>
     <div class="pause-info" id="pauseInfo"></div>
-    <button class="primary-btn" id="resumeBtn">&gt; ПРОДОЛЖИТЬ</button>
-    <button class="primary-btn secondary" id="pauseCfgBtn">НАСТРОЙКИ</button>
-    <button class="primary-btn secondary" id="pauseMenuBtn">ВЫЙТИ В МЕНЮ</button>
-    <div class="muted setting-note">Прогресс сохраняется автоматически.</div>
+    <button class="primary-btn" id="resumeBtn" data-i18n="pause.resume">&gt; ПРОДОЛЖИТЬ</button>
+    <button class="primary-btn secondary" id="pauseCfgBtn" data-i18n="pause.settings">НАСТРОЙКИ</button>
+    <button class="primary-btn secondary" id="pauseMenuBtn" data-i18n="pause.menu">ВЫЙТИ В МЕНЮ</button>
+    <div class="muted setting-note" data-i18n="pause.note"></div>
+  </div>
+</div>
+
+<!-- ═════════ УЛУЧШЕНИЕ (бесконечный режим) ═════════ -->
+<div class="modal-overlay" id="upgradeOverlay">
+  <div class="modal-box">
+    <h2 data-i18n="upg.title">УЛУЧШЕНИЕ</h2>
+    <div class="upgrade-sub" data-i18n="upg.sub"></div>
+    <div class="upgrade-opts" id="upgradeOpts"></div>
   </div>
 </div>
 
@@ -225,8 +254,9 @@
     <h2 id="endTitle">ДОСТУП РАЗРЕШЁН</h2>
     <div class="win-msg" id="endMsg"></div>
     <div class="stats" id="stats"></div>
+    <div class="stage-stars" id="stageStars"></div>
     <div class="new-ach" id="newAch"></div>
-    <button class="primary-btn" id="restartBtn">&gt; В МЕНЮ</button>
+    <button class="primary-btn" id="restartBtn" data-i18n="btn.menu">&gt; В МЕНЮ</button>
   </div>
 </div>
 
@@ -234,16 +264,18 @@
 <div class="coach" id="coach" hidden>
   <div class="coach-text" id="coachText"></div>
   <div class="coach-btns">
-    <button class="link-btn" id="coachSkip">[ ПРОПУСТИТЬ ОБУЧЕНИЕ ]</button>
-    <button class="link-btn coach-ok" id="coachOk">[ ПОНЯТНО ]</button>
+    <button class="link-btn" id="coachSkip" data-i18n="coach.skip">[ ПРОПУСТИТЬ ОБУЧЕНИЕ ]</button>
+    <button class="link-btn coach-ok" id="coachOk" data-i18n="coach.ok">[ ПОНЯТНО ]</button>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
+<script src="i18n.js"></script>
 <script src="audio.js"></script>
 <script src="words.js"></script>
 <script src="questions.js"></script>
+<script src="lore.js"></script>
 <script src="terminal.js"></script>
 <script src="script.js"></script>
 </body>

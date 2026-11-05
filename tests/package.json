@@ -1,0 +1,13 @@
+{
+  "name": "oz-terminal-tests",
+  "private": true,
+  "description": "Автотесты игры OZ-TERMINAL: проверка данных и браузерные сценарии (Playwright)",
+  "scripts": {
+    "test": "node --test --test-concurrency=1",
+    "test:data": "node --test data.test.js",
+    "test:e2e": "node --test e2e.test.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
