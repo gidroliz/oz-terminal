@@ -2,7 +2,7 @@
 
 // ═══════════════════════════════════════════════
 // ЗВУКОВОЙ ДВИЖОК
-// Непрерывные слои (гул ЭЛТ, натяжение цилиндра, скрежет металла)
+// Непрерывные слои (натяжение цилиндра, скрежет металла) — звучат только во время взлома замка
 // + разовые эффекты. Всё синтезируется в Web Audio API.
 // ═══════════════════════════════════════════════
 const AudioEngine = (() => {
@@ -41,26 +41,6 @@ const AudioEngine = (() => {
   }
 
   function buildLayers() {
-    // Гул ЭЛТ-монитора: 50 и 100 Гц + тихое шипение
-    L.hum = ctx.createGain();
-    L.hum.gain.value = 0;
-    L.hum.connect(master);
-    [[50, 0.5], [100, 0.3], [150, 0.08]].forEach(([f, v]) => {
-      const o = ctx.createOscillator();
-      o.frequency.value = f;
-      const g = ctx.createGain();
-      g.gain.value = v;
-      o.connect(g).connect(L.hum);
-      o.start();
-    });
-    const hiss = loopNoise();
-    const hissF = ctx.createBiquadFilter();
-    hissF.type = 'highpass';
-    hissF.frequency.value = 6000;
-    const hissG = ctx.createGain();
-    hissG.gain.value = 0.12;
-    hiss.connect(hissF).connect(hissG).connect(L.hum);
-
     // Натяжение цилиндра: низкий «скрип», высота растёт с поворотом
     L.turnOsc = ctx.createOscillator();
     L.turnOsc.type = 'sawtooth';
@@ -111,9 +91,8 @@ const AudioEngine = (() => {
   }
 
   // Вызывается каждый кадр из игрового цикла
-  function update({ hum, turning, rot, jammed, wear }) {
-    if (!ctx || !L.hum) return;
-    to(L.hum.gain, hum ? 0.018 : 0, 0.4);
+  function update({ turning, rot, jammed, wear }) {
+    if (!ctx || !L.turn) return;
     to(L.turn.gain, turning && !jammed ? 0.05 : 0, 0.04);
     to(L.turnOsc.frequency, 40 + rot * 0.9, 0.05);
     to(L.grind.gain, jammed ? 0.35 + wear / 300 : 0, jammed ? 0.02 : 0.06);

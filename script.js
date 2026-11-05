@@ -446,7 +446,6 @@ function update(dt) {
   const active = S.started && !S.finished && S.tab === 'hack';
 
   AudioEngine.update({
-    hum: S.started && !S.finished,
     turning: S.turning,
     rot: S.rot,
     jammed: S.jammed,
