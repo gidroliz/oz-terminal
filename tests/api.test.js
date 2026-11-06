@@ -93,3 +93,9 @@ test('смена позывного', async () => {
   const lb = await get('leaderboard?mode=normal');
   assert.ok(lb.top.some((x) => x.name === 'Альфа-2'));
 });
+
+test('проверка подключения базы', async () => {
+  const r = await get('health');
+  assert.deepEqual([r.ok, r.storage], [true, 'connected']);
+  assert.ok(r.players >= 1);
+});

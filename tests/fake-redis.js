@@ -32,6 +32,8 @@ function createFakeRedis() {
       case 'HSET': h(a[0]).set(a[1], a[2]); return 1;
       case 'HGET': { const v = h(a[0]).get(a[1]); return v == null ? null : v; }
       case 'HMGET': return a.slice(1).map((f) => { const v = h(a[0]).get(f); return v == null ? null : v; });
+      case 'PING': return 'PONG';
+      case 'HLEN': return h(a[0]).size;
       case 'HDEL': return h(a[0]).delete(a[1]) ? 1 : 0;
       default: throw new Error('fake redis: unsupported ' + c);
     }

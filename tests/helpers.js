@@ -19,6 +19,7 @@ function apiHandlers() {
     score: require('../api/score'),
     leaderboard: require('../api/leaderboard'),
     name: require('../api/name'),
+    health: require('../api/health'),
   };
 }
 
