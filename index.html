@@ -54,6 +54,11 @@
       <div class="howto-title" data-i18n="howto.term">ТЕРМИНАЛ</div>
       <div class="howto-row"><span class="howto-key">4</span><span data-i18n-html="howto.4"></span></div>
       <div class="howto-row"><span class="howto-key">5</span><span data-i18n-html="howto.5"></span></div>
+      <div class="howto-title" data-i18n="howto.mg">СЕЙФ · ЩИТОК · КЛЮЧ-КАРТА</div>
+      <div class="howto-row"><span class="howto-key">7</span><span data-i18n-html="howto.safe"></span></div>
+      <div class="howto-row"><span class="howto-key">8</span><span data-i18n-html="howto.wire"></span></div>
+      <div class="howto-row"><span class="howto-key">9</span><span data-i18n-html="howto.card"></span></div>
+      <div class="howto-row"><span class="howto-key">!</span><span data-i18n-html="howto.events"></span></div>
       <div class="howto-title" data-i18n="howto.reserve">РЕЗЕРВ</div>
       <div class="howto-row"><span class="howto-key">6</span><span data-i18n-html="howto.6"></span></div>
     </details>
@@ -67,6 +72,11 @@
       <button class="chip diff-btn" data-diff="endless" role="radio" data-i18n="mode.endless">БЕСКОНЕЧНЫЙ</button>
     </div>
     <div class="mode-desc" id="modeDesc"></div>
+    <div class="opt-group" aria-label="Модификаторы">
+      <span class="opt-label" data-i18n="start.mods">МОДИФИКАТОРЫ:</span>
+      <span class="topics" id="mods"></span>
+    </div>
+    <div class="mode-desc" id="modsDesc"></div>
     <div class="opt-group" aria-label="Темы вопросов">
       <span class="opt-label" data-i18n="start.topics">ВОПРОСЫ:</span>
       <span class="topics" id="topics"></span>
@@ -115,6 +125,7 @@
       <!-- ВЗЛОМ -->
       <section class="pane active" data-pane="hack">
         <div class="lock-title" id="levelTitle">ЗАГРУЗКА ДАННЫХ...</div>
+        <div class="event-bar" id="eventBar" hidden></div>
         <div class="level-indicator" id="levelIndicator"></div>
 
         <div class="lock-area" id="lockArea">
@@ -126,6 +137,7 @@
             <div class="hint-text" id="hintText"></div>
           </div>
           <div id="termView" class="term-view" hidden></div>
+          <div id="mgView" class="term-view mg-view" hidden></div>
         </div>
 
         <div class="action-panel" id="actionPanel">
@@ -199,16 +211,20 @@
           <h3 data-i18n="cfg.screen">ЭКРАН</h3>
           <div class="setting">
             <span data-i18n="cfg.color">ЦВЕТ</span>
-            <span class="themes" id="themes">
-              <button class="chip theme-btn" data-theme="green" style="--sw:#33ff33" data-i18n="theme.green">ЗЕЛ</button>
-              <button class="chip theme-btn" data-theme="amber" style="--sw:#ffb000" data-i18n="theme.amber">ЯНТ</button>
-              <button class="chip theme-btn" data-theme="white" style="--sw:#e8f4ff" data-i18n="theme.white">БЕЛ</button>
-              <button class="chip theme-btn" data-theme="cyan" style="--sw:#33e0ff" data-i18n="theme.cyan">ГОЛ</button>
-            </span>
+            <span class="themes wrap" id="themes"></span>
           </div>
+          <div class="setting">
+            <span data-i18n="cfg.pick">ОТМЫЧКА</span>
+            <span class="themes wrap" id="skins"></span>
+          </div>
+          <div class="muted setting-note" data-i18n="cfg.cosmeticsNote"></div>
           <label class="setting"><span data-i18n="cfg.crt">ЭФФЕКТЫ ЭЛТ</span><input type="checkbox" id="setCrt"><i class="toggle"></i></label>
           <label class="setting"><span data-i18n="cfg.typing">ЭФФЕКТ ПЕЧАТИ</span><input type="checkbox" id="setTyping"><i class="toggle"></i></label>
           <label class="setting"><span data-i18n="cfg.large">КРУПНЫЙ ШРИФТ</span><input type="checkbox" id="setLarge"><i class="toggle"></i></label>
+
+          <h3 data-i18n="cfg.privacy">ДАННЫЕ</h3>
+          <label class="setting"><span data-i18n="cfg.stats">АНОНИМНАЯ СТАТИСТИКА</span><input type="checkbox" id="setStats"><i class="toggle"></i></label>
+          <div class="muted setting-note" data-i18n="cfg.statsNote"></div>
 
           <h3 data-i18n="cfg.tutorial">ОБУЧЕНИЕ</h3>
           <button class="primary-btn secondary" id="tutorialResetBtn" data-i18n="cfg.tutorialReset">ПРОЙТИ ОБУЧЕНИЕ ЗАНОВО</button>
@@ -220,6 +236,7 @@
             <div><span data-i18n="keys.space"></span><b data-i18n="keys.turn"></b></div>
             <div><span data-i18n="keys.arrows"></span><b data-i18n="keys.term"></b></div>
             <div><span>X</span><b data-i18n="keys.mark"></b></div>
+            <div><span data-i18n="keys.mgKeys"></span><b data-i18n="keys.mg"></b></div>
             <div><span>S</span><b data-i18n="keys.scan"></b></div>
             <div><span>R</span><b data-i18n="keys.reserve"></b></div>
             <div><span>P / ESC</span><b data-i18n="keys.pause"></b></div>
@@ -277,7 +294,21 @@
     <div class="stage-stars" id="stageStars"></div>
     <div class="new-ach" id="newAch"></div>
     <div class="lb-box" id="lbBox"></div>
+    <button class="primary-btn secondary" id="shareBtn" data-i18n="share.btn" hidden>ПОДЕЛИТЬСЯ РЕЗУЛЬТАТОМ</button>
     <button class="primary-btn" id="restartBtn" data-i18n="btn.menu">&gt; В МЕНЮ</button>
+  </div>
+</div>
+
+<!-- ═════════ КАРТОЧКА РЕЗУЛЬТАТА ═════════ -->
+<div class="modal-overlay share-overlay" id="shareOverlay">
+  <div class="modal-box modal-green share-box">
+    <h2 data-i18n="share.title">ПОДЕЛИТЬСЯ</h2>
+    <img id="shareImg" class="share-img" alt="">
+    <div class="muted share-note" id="shareNote"></div>
+    <button class="primary-btn" id="shareSendBtn" data-i18n="share.send">&gt; ОТПРАВИТЬ</button>
+    <button class="primary-btn secondary" id="shareSaveBtn" data-i18n="share.save">СОХРАНИТЬ КАРТИНКУ</button>
+    <button class="primary-btn secondary" id="shareCopyBtn" data-i18n="share.copy">СКОПИРОВАТЬ ТЕКСТ</button>
+    <button class="link-btn" id="shareCloseBtn" data-i18n="share.close">[ ЗАКРЫТЬ ]</button>
   </div>
 </div>
 
@@ -298,6 +329,7 @@
 <script src="questions.js"></script>
 <script src="lore.js"></script>
 <script src="terminal.js"></script>
+<script src="minigames.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

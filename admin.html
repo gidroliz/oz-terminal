@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>OZ-TERMINAL // Модерация</title>
+  <style>
+    @font-face { font-family: 'Ubuntu Mono'; src: url('fonts/ubuntu-mono-cyrillic.woff2') format('woff2'); unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+    @font-face { font-family: 'Ubuntu Mono'; src: url('fonts/ubuntu-mono-latin.woff2') format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122, U+2190-21FF; }
+    :root { --pri: #33ff33; --mid: #22cc22; --dark: #116611; --dim: #0c440c; --acc: #ffb000; --red: #ff5a5a; --bg: #020502; --panel: #050b05; --text: #c8ffc0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 'Ubuntu Mono', 'Courier New', monospace; }
+    main { max-width: 980px; margin: 0 auto; padding: 16px 12px 40px; }
+    h1 { color: var(--pri); font-size: 1.3rem; letter-spacing: 2px; margin: 0 0 12px; text-shadow: 0 0 8px rgba(51,255,51,.4); }
+    h2 { color: var(--acc); font-size: 0.95rem; letter-spacing: 2px; margin: 26px 0 8px; border-bottom: 1px dashed var(--dark); padding-bottom: 4px; }
+    input, select, button { font: inherit; background: var(--panel); color: var(--pri); border: 1px solid var(--mid); border-radius: 4px; padding: 6px 10px; }
+    button { cursor: pointer; }
+    button:hover { background: #0c1a0c; }
+    button.danger { color: var(--red); border-color: var(--red); }
+    button.small { padding: 2px 7px; font-size: 0.8rem; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .muted { color: var(--dark); }
+    .msg { margin: 8px 0; min-height: 1.2em; color: var(--acc); }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+    .tile { border: 1px solid var(--dark); border-radius: 6px; padding: 10px; background: var(--panel); }
+    .tile b { display: block; font-size: 1.8rem; color: var(--pri); font-weight: normal; }
+    .tile span { color: var(--mid); font-size: 0.8rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 4px 6px; border-bottom: 1px dotted var(--dim); vertical-align: middle; }
+    th { color: var(--mid); font-weight: normal; position: sticky; top: 0; background: var(--bg); }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .bar { display: inline-block; height: 8px; border-radius: 0 4px 4px 0; background: var(--mid); vertical-align: middle; min-width: 1px; }
+    .barcell { width: 32%; }
+    .scroll { overflow-x: auto; }
+    .id { color: var(--dark); font-size: 0.75rem; }
+    .mods { color: var(--red); }
+    .funnel td.barcell { width: 50%; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>OZ-TERMINAL // МОДЕРАЦИЯ</h1>
+
+  <form class="row" id="auth">
+    <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off" size="28">
+    <button type="submit">ВОЙТИ</button>
+    <button type="button" id="logout">ВЫЙТИ</button>
+  </form>
+  <div class="msg" id="msg"></div>
+
+  <section id="app" hidden>
+    <h2>СВОДКА</h2>
+    <div class="row">
+      <label>Период: <select id="days"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option></select></label>
+      <button id="reload">ОБНОВИТЬ</button>
+    </div>
+    <div class="tiles" id="tiles" style="margin-top:10px"></div>
+
+    <h2>ПО ДНЯМ</h2>
+    <div class="scroll"><table id="daysTable"></table></div>
+
+    <h2>ВОРОНКА: ДО КАКОГО ЭТАПА ДОХОДЯТ</h2>
+    <div class="row"><label>Режим: <select id="funnelMode"></select></label></div>
+    <div class="scroll"><table class="funnel" id="funnel"></table></div>
+
+    <h2>ТАБЛИЦА РЕКОРДОВ</h2>
+    <div class="row"><label>Режим: <select id="lbMode"></select></label> <button id="lbReload">ОБНОВИТЬ</button></div>
+    <div class="scroll"><table id="lb"></table></div>
+
+    <h2>ЗАБАНЕННЫЕ</h2>
+    <div class="scroll"><table id="banned"></table></div>
+  </section>
+</main>
+
+<script>
+'use strict';
+const MODES = { easy: 'Новичок', normal: 'Взломщик', hard: 'Мастер', alarm: 'Тревога', endless: 'Бесконечный' };
+const MOD_NAMES = { noscan: 'без сканера', onepick: 'одна отмычка', fragile: 'хрупкие', noreserve: 'без резерва', chaos: 'хаос', blind: 'вслепую' };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (ms) => { const s = Math.floor((ms || 0) / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+let STATS = null;
+
+function token() { return sessionStorage.getItem('oz.admin') || ''; }
+function say(t) { $('msg').textContent = t; }
+
+async function call(path, body) {
+  const r = await fetch('api/admin' + path, {
+    method: body ? 'POST' : 'GET',
+    headers: Object.assign({ Authorization: 'Bearer ' + token() }, body ? { 'Content-Type': 'application/json' } : {}),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await r.json().catch(() => ({ ok: false, error: 'server' }));
+  if (data.error === 'forbidden') { say('Неверный токен (или ADMIN_TOKEN не задан на сервере).'); $('app').hidden = true; throw new Error('forbidden'); }
+  if (!data.ok) { say('Ошибка: ' + (data.error || 'server')); throw new Error(data.error); }
+  return data;
+}
+
+function bar(v, max) { return `<span class="bar" style="width:${max ? Math.max(1, v / max * 100) : 0}%"></span>`; }
+
+async function loadStats() {
+  const d = await call('?stats=' + $('days').value);
+  STATS = d;
+  const sum = (k) => d.days.reduce((a, x) => a + (x.c[k] || 0), 0);
+  const tiles = [
+    ['Визиты', sum('visit')], ['Уникальные (сумма по дням)', sum('uv')], ['Начато взломов', sum('start')],
+    ['Пройдено', sum('finish')], ['Провалов/сессий', sum('fail')], ['Вышли в меню', sum('quit')],
+    ['Результатов в таблицу', sum('lb')], ['Поделились', sum('share')], ['Игроков с позывным', d.players],
+  ];
+  $('tiles').innerHTML = tiles.map(([k, v]) => `<div class="tile"><b>${v}</b><span>${esc(k)}</span></div>`).join('');
+
+  const max = Math.max(1, ...d.days.map((x) => x.c.visit || 0));
+  $('daysTable').innerHTML = `<tr><th>День</th><th class="num">Визиты</th><th class="barcell"></th><th class="num">Уник.</th><th class="num">Старты</th><th class="num">Пройдено</th><th class="num">Провалы</th><th class="num">В таблицу</th><th class="num">Поделились</th></tr>`
+    + d.days.map((x) => `<tr title="${esc(x.d)}: визитов ${x.c.visit || 0}">
+      <td>${esc(x.d)}</td><td class="num">${x.c.visit || 0}</td><td class="barcell">${bar(x.c.visit || 0, max)}</td>
+      <td class="num">${x.c.uv || 0}</td><td class="num">${x.c.start || 0}</td><td class="num">${x.c.finish || 0}</td>
+      <td class="num">${x.c.fail || 0}</td><td class="num">${x.c.lb || 0}</td><td class="num">${x.c.share || 0}</td></tr>`).join('');
+
+  renderFunnel();
+  $('banned').innerHTML = d.banned.length
+    ? `<tr><th>Позывной</th><th>id</th><th></th></tr>` + d.banned.map((b) => `<tr><td>${esc(b.name || '???')}</td><td class="id">${esc(b.id)}</td><td><button class="small" data-unban="${esc(b.id)}">СНЯТЬ БАН</button></td></tr>`).join('')
+    : '<tr><td class="muted">Никого.</td></tr>';
+}
+
+function renderFunnel() {
+  if (!STATS) return;
+  const f = STATS.funnel[$('funnelMode').value] || {};
+  const start = f['0'] || 0;
+  const steps = Object.keys(f).filter((k) => k !== 'done').map(Number).sort((a, b) => a - b);
+  if (!start && !steps.length) { $('funnel').innerHTML = '<tr><td class="muted">Пока нет данных.</td></tr>'; return; }
+  const rows = steps.map((n) => [n === 0 ? 'Старт (этап 1)' : `Дошли до этапа ${n + 1}`, f[n] || 0]);
+  if (f.done != null) rows.push(['Прошли до конца', f.done]);
+  $('funnel').innerHTML = `<tr><th>Шаг</th><th class="num">Игроков</th><th class="num">% от старта</th><th class="barcell"></th></tr>`
+    + rows.map(([k, v]) => `<tr title="${esc(k)}: ${v}"><td>${esc(k)}</td><td class="num">${v}</td><td class="num">${start ? Math.round(v / start * 100) : 0}%</td><td class="barcell">${bar(v, start || v)}</td></tr>`).join('');
+}
+
+async function loadBoard() {
+  const mode = $('lbMode').value;
+  const d = await call('?mode=' + mode);
+  const endless = mode === 'endless';
+  $('lb').innerHTML = d.rows.length
+    ? `<tr><th>#</th><th>Позывной</th><th class="num">Результат</th><th class="num">Реальное</th><th>Мод.</th><th class="num">✕</th><th class="num">★</th><th>Дата</th><th>id</th><th></th></tr>`
+      + d.rows.map((r) => `<tr>
+        <td>${r.rank}</td><td>${esc(r.name || '???')}</td>
+        <td class="num">${endless ? `${r.stages} эт. ` : ''}${fmt(r.time)}</td><td class="num">${r.raw ? fmt(r.raw) : ''}</td>
+        <td class="mods">${esc((r.mods || []).map((m) => MOD_NAMES[m] || m).join(', '))}</td>
+        <td class="num">${r.broken != null ? r.broken : ''}</td><td class="num">${r.stars != null ? r.stars : ''}</td>
+        <td>${r.d ? new Date(r.d).toLocaleString('ru-RU') : ''}</td><td class="id">${esc(r.id)}</td>
+        <td class="row"><button class="small" data-rename="${esc(r.id)}" data-name="${esc(r.name || '')}">ИМЯ</button>
+          <button class="small danger" data-remove="${esc(r.id)}">УДАЛИТЬ</button>
+          <button class="small danger" data-ban="${esc(r.id)}">БАН</button></td></tr>`).join('')
+    : '<tr><td class="muted">Таблица пуста.</td></tr>';
+}
+
+async function loadAll() {
+  say('Загрузка...');
+  try { await loadStats(); await loadBoard(); $('app').hidden = false; say(''); } catch (e) {}
+}
+
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  try {
+    if (b.dataset.remove && confirm('Удалить результат из таблицы этого режима?')) { await call('', { action: 'remove', mode: $('lbMode').value, id: b.dataset.remove }); await loadBoard(); say('Удалено.'); }
+    if (b.dataset.ban && confirm('Забанить игрока? Его результаты исчезнут из всех таблиц, новые не будут приниматься.')) { await call('', { action: 'ban', id: b.dataset.ban }); await loadAll(); say('Забанен.'); }
+    if (b.dataset.unban) { await call('', { action: 'unban', id: b.dataset.unban }); await loadStats(); say('Бан снят.'); }
+    if (b.dataset.rename) {
+      const name = prompt('Новый позывной (до 16 символов):', b.dataset.name);
+      if (name && name.trim()) { await call('', { action: 'rename', id: b.dataset.rename, name: name.trim() }); await loadBoard(); say('Переименовано.'); }
+    }
+  } catch (err) {}
+});
+
+$('auth').addEventListener('submit', (e) => { e.preventDefault(); sessionStorage.setItem('oz.admin', $('token').value.trim()); $('token').value = ''; loadAll(); });
+$('logout').addEventListener('click', () => { sessionStorage.removeItem('oz.admin'); $('app').hidden = true; say('Вышли.'); });
+$('reload').addEventListener('click', loadAll);
+$('days').addEventListener('change', loadStats);
+$('lbReload').addEventListener('click', loadBoard);
+$('lbMode').addEventListener('change', loadBoard);
+$('funnelMode').addEventListener('change', renderFunnel);
+const opts = Object.entries(MODES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+$('lbMode').innerHTML = opts;
+$('funnelMode').innerHTML = opts;
+$('lbMode').value = 'normal';
+$('funnelMode').value = 'normal';
+if (token()) loadAll();
+</script>
+</body>
+</html>

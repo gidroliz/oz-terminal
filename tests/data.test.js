@@ -60,7 +60,7 @@ test('все ключи из разметки и кода есть в слова
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const used = new Set();
   for (const m of html.matchAll(/data-i18n(?:-html|-title)?="([^"]+)"/g)) used.add(m[1]);
-  for (const f of ['script.js', 'terminal.js']) {
+  for (const f of ['script.js', 'terminal.js', 'minigames.js']) {
     const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
     for (const m of src.matchAll(/\bt\('([a-zA-Z0-9_.]+)'/g)) used.add(m[1]);
   }

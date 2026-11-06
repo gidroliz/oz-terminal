@@ -43,8 +43,32 @@ async function startMode(page, mode) {
   await page.click(`.diff-btn[data-diff="${mode}"]`);
   await page.click('#startBtn');
   await page.waitForFunction(() => S.started);
-  // Плавающая точка мешает автоматическому прохождению
-  await page.evaluate(() => { CFG.FLOAT_AMP = 0; });
+  // Плавающая точка и случайные события мешают автоматическому прохождению
+  await page.evaluate(() => { CFG.FLOAT_AMP = 0; CFG.EVENTS = false; S.eventAt = 0; });
+}
+
+// Мини-игры «идеально»: сейф — диск ровно на числе, щиток — один поворот до решения, карта — нажатие в центре блока
+async function solveMiniGame(page) {
+  const type = await page.evaluate(() => S.mg.type);
+  if (type === 'safe') {
+    const n = await page.evaluate(() => S.mg.combo.length);
+    for (let i = 0; i < n; i++) {
+      await page.evaluate(() => { S.mg.pos = S.mg.combo[S.mg.idx]; });
+      await page.click('.mg-act');
+    }
+  } else if (type === 'wire') {
+    const i = await page.evaluate(() => {
+      const path = S.mg.tiles.map((tl, k) => [tl, k]).filter(([tl]) => tl.path);
+      path.forEach(([tl]) => { tl.r = 0; });
+      const [last, k] = path[path.length - 1];
+      last.r = 3; // ещё один поворот по часовой — и цепь замкнётся
+      return k;
+    });
+    await page.click(`.wt[data-i="${i}"]`);
+  } else {
+    const n = await page.evaluate(() => S.mg.need);
+    for (let i = 0; i < n; i++) await page.evaluate(() => { S.mg.beam = (S.mg.zone[0] + S.mg.zone[1]) / 2; MiniGames.act(); });
+  }
 }
 
 // Проходит текущий этап «идеально»: замок — отмычкой точно в цель, терминал — сразу паролем
@@ -53,14 +77,16 @@ async function solveStage(page) {
   for (let guard = 0; guard < 6; guard++) {
     const type = await page.evaluate(() => S.stages[S.stage].type);
     if (type === 'lock') {
-      await page.evaluate(() => { S.angle = S.target; });
+      const pins = await page.evaluate(() => { S.angle = S.target; return S.pinsLeft; });
       await page.dispatchEvent('#hackBtn', 'pointerdown');
-      await page.waitForFunction(() => S.rot <= 0 || S.advancing || S.finished, null, { timeout: 5000 }).catch(() => {});
-      await page.waitForFunction((b) => S.cleared > b || (!S.turning && S.rot >= 89) || S.finished, before, { timeout: 5000 });
+      // Ждём, пока замок откроется или поддастся штифт двойного замка
+      await page.waitForFunction(([b, p]) => S.cleared > b || S.pinsLeft < p || S.finished, [before, pins], { timeout: 5000 });
       await page.dispatchEvent('#hackBtn', 'pointerup');
-    } else {
+    } else if (type === 'term') {
       const start = await page.evaluate(() => S.term.words.find((w) => w.w === S.term.password).start);
       await page.click(`[data-i="${start}"]`);
+    } else {
+      await solveMiniGame(page);
     }
     if (await page.evaluate((b) => S.cleared > b, before)) break;
     await page.waitForFunction(() => S.rot <= 0, null, { timeout: 3000 });
@@ -99,7 +125,7 @@ test('режим «Взломщик» проходится целиком, вс�
 test('двойной замок требует два штифта', async () => {
   const { page, context } = await openGame();
   await startMode(page, 'normal');
-  await page.evaluate(() => { S.stage = 4; enterStage(true); });
+  await page.evaluate(() => { S.stage = 7; enterStage(true); });
   assert.equal(await page.evaluate(() => S.pinsLeft), 2);
   await page.evaluate(() => { S.angle = S.target; });
   await page.dispatchEvent('#hackBtn', 'pointerdown');
@@ -137,7 +163,7 @@ test('пометка слова правым кликом', async () => {
 test('перемешивающийся терминал раскладывает слова заново после ошибки', async () => {
   const { page, context } = await openGame();
   await startMode(page, 'normal');
-  await page.evaluate(() => { S.stage = 3; enterStage(true); });
+  await page.evaluate(() => { S.stage = 5; enterStage(true); });
   assert.equal(await page.evaluate(() => S.term.kind), 'shuffle');
   const before = await page.evaluate(() => S.term.words.map((w) => w.start).join());
   const wrong = await page.evaluate(() => S.term.words.find((w) => w.w !== S.term.password).start);
@@ -282,5 +308,133 @@ test('без сервера игра работает и честно сообщ
   } finally {
     await context.close();
     bare.close();
+  }
+});
+
+// ── Мини-игры, события, модификаторы, внешний вид, карточка, админка ──
+test('сейф: неверные числа поднимают шум и блокируют сейф, потом сброс', async () => {
+  const { page, context, problems } = await openGame();
+  await startMode(page, 'normal');
+  await page.evaluate(() => { S.stage = 2; enterStage(true); Tutorial.hide(); });
+  assert.equal(await page.evaluate(() => S.mg.type), 'safe');
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => { S.mg.pos = (S.mg.combo[S.mg.idx] + 20) % 40; });
+    await page.click('.mg-act');
+  }
+  assert.ok(await page.evaluate(() => S.termLockLeft > 0 && S.st.lockouts === 1));
+  assert.ok(await page.$eval('#mgView .term-lock', (el) => !el.classList.contains('hidden')));
+  await page.evaluate(() => { S.termLockLeft = 50; });
+  await page.waitForFunction(() => S.termLockLeft <= 0 && S.mg.errors === 0 && S.mg.noise === 0);
+  assert.deepEqual(problems, []);
+  await context.close();
+});
+
+test('щиток: поворот участка и сканер, который чинит схему', async () => {
+  const { page, context } = await openGame();
+  await startMode(page, 'normal');
+  await page.evaluate(() => { S.stage = 4; enterStage(true); Tutorial.hide(); });
+  assert.equal(await page.evaluate(() => S.mg.type), 'wire');
+  const r0 = await page.evaluate(() => S.mg.tiles[0].r);
+  await page.click('.wt[data-i="0"]');
+  assert.deepEqual(await page.evaluate(() => [S.mg.moves, S.mg.tiles[0].r]), [1, (r0 + 1) % 4]);
+  await page.evaluate(() => { S.scanners = 1; updateButtons(); });
+  if (await page.evaluate(() => MiniGames.canScan())) {
+    await page.click('#scanBtn');
+    assert.equal(await page.evaluate(() => S.mg.tiles.filter((tl) => tl.fixed).length), 1);
+    assert.equal(await page.evaluate(() => S.scanners), 0);
+  }
+  await context.close();
+});
+
+test('ключ-карта: промах считается сбоем, попадание записывает блок', async () => {
+  const { page, context } = await openGame();
+  await startMode(page, 'normal');
+  await page.evaluate(() => { S.stage = 6; enterStage(true); Tutorial.hide(); });
+  assert.equal(await page.evaluate(() => S.mg.type), 'card');
+  await page.evaluate(() => { const [a, b] = S.mg.zone; S.mg.beam = a > 10 ? 0 : 30; MiniGames.act(); });
+  assert.deepEqual(await page.evaluate(() => [S.mg.errors, S.mg.got]), [1, 0]);
+  await page.evaluate(() => { S.mg.beam = (S.mg.zone[0] + S.mg.zone[1]) / 2; MiniGames.act(); });
+  assert.deepEqual(await page.evaluate(() => [S.mg.errors, S.mg.got]), [1, 1]);
+  await context.close();
+});
+
+test('модификаторы: одна отмычка и без сканера, резерв отключён', async () => {
+  const { page, context, problems } = await openGame();
+  await page.click('.mod-btn[data-mod="onepick"]');
+  await page.click('.mod-btn[data-mod="noscan"]');
+  assert.match(await page.textContent('#modsDesc'), /−25%/);
+  await startMode(page, 'normal');
+  const st = await page.evaluate(() => ({ picks: S.picks, scans: S.scanners, mods: S.mods.slice().sort(), res: document.getElementById('getPinBtn').disabled }));
+  assert.deepEqual(st, { picks: 1, scans: 0, mods: ['noscan', 'onepick'], res: true });
+  assert.equal(await page.evaluate(() => adjTime(100000, S.mods)), 75000);
+  assert.deepEqual(problems, []);
+  await context.close();
+});
+
+test('события: патруль замечает движение, свет гаснет и возвращается', async () => {
+  const { page, context, problems } = await openGame();
+  await startMode(page, 'normal');
+  await solveStage(page);
+  await page.evaluate(() => { startEvent('patrol'); S.event.left = EVENT_DUR.patrol - PATROL_GRACE - 100; });
+  await page.waitForFunction(() => S.event && S.event.watch);
+  assert.match(await page.textContent('#eventBar'), /ПАТРУЛЬ/);
+  await page.click('#termView .term-dump');
+  assert.deepEqual(await page.evaluate(() => [S.event, S.scanners]), [null, 0]);
+  await page.evaluate(() => startEvent('blackout'));
+  assert.ok(await page.evaluate(() => hackPane.classList.contains('ev-blackout')));
+  await page.evaluate(() => { S.event.left = 100; });
+  await page.waitForFunction(() => !hackPane.classList.contains('ev-blackout') && !S.event);
+  assert.deepEqual(problems, []);
+  await context.close();
+});
+
+test('внешний вид: закрытая тема не включается, после достижения — включается', async () => {
+  const { page, context } = await openGame();
+  await page.click('#statsLinkBtn');
+  await page.click('.tab[data-tab="cfg"]');
+  await page.click('.theme-btn[data-theme="red"]');
+  assert.equal(await page.evaluate(() => SETTINGS.theme), 'green');
+  assert.ok((await page.textContent('#toast')).includes(await page.evaluate(() => t('ach.alarm.name'))));
+  await page.evaluate(() => { P.ach.alarm = Date.now(); P.ach.first = Date.now(); buildCosmetics(); });
+  await page.click('.theme-btn[data-theme="red"]');
+  await page.click('.skin-btn[data-skin="brass"]');
+  assert.deepEqual(await page.evaluate(() => [document.documentElement.dataset.theme, SETTINGS.pick]), ['red', 'brass']);
+  await context.close();
+});
+
+test('карточка результата: картинка 1080×1350 и текст с режимом', async () => {
+  const { page, context, problems } = await openGame();
+  await startMode(page, 'easy');
+  const total = await page.evaluate(() => S.stages.length);
+  for (let i = 0; i < total; i++) await solveStage(page);
+  await page.waitForSelector('#shareBtn:not([hidden])');
+  await page.click('#shareBtn');
+  await page.waitForFunction(() => document.getElementById('shareImg').naturalWidth > 0, null, { timeout: 8000 });
+  assert.deepEqual(await page.$eval('#shareImg', (i) => [i.naturalWidth, i.naturalHeight]), [1080, 1350]);
+  assert.match(await page.evaluate(() => shareText(SHARE.result)), /Новичок|НОВИЧОК/i);
+  assert.deepEqual(problems, []);
+  await context.close();
+});
+
+test('страница модерации: вход по токену, статистика и таблица', async () => {
+  process.env.ADMIN_TOKEN = 'test-admin-token-123';
+  const context = await browser.newContext({ viewport: { width: 1000, height: 900 } });
+  const page = await context.newPage();
+  const problems = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  try {
+    await page.goto(url + 'admin.html');
+    await page.fill('#token', 'wrong');
+    await page.click('#auth button[type="submit"]');
+    await page.waitForFunction(() => /Неверный токен/.test(document.getElementById('msg').textContent));
+    await page.fill('#token', 'test-admin-token-123');
+    await page.click('#auth button[type="submit"]');
+    await page.waitForSelector('#app:not([hidden])');
+    assert.ok(await page.$$eval('.tile', (t) => t.length) >= 6);
+    assert.ok(Number(await page.textContent('.tile b')) > 0, 'визиты из предыдущих тестов должны посчитаться');
+    assert.deepEqual(problems, []);
+  } finally {
+    delete process.env.ADMIN_TOKEN;
+    await context.close();
   }
 });

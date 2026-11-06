@@ -153,6 +153,19 @@ const AudioEngine = (() => {
     scan()    { [300, 600, 1200, 2400].forEach((f, i) => tone(f, 'sine', 0.08, 0.05, i * 0.05)); },
     type()    { noise(0.012, 0.05, 3500 + Math.random() * 1500); },
     fail()    { tone(120, 'sawtooth', 0.4, 0.15); tone(90, 'sawtooth', 0.5, 0.15, 0.05); },
+    // Мини-игры
+    dial(n = 0) {
+      noise(0.018, 0.07 + n * 0.22, 1900 - n * 900);
+      if (n >= 0.999) { tone(130, 'triangle', 0.09, 0.22); noise(0.04, 0.25, 500); } else if (n > 0) tone(240 + n * 160, 'triangle', 0.02, 0.02 + n * 0.07);
+    },
+    tumbler() { noise(0.05, 0.35, 600); tone(220, 'square', 0.06, 0.07, 0.03); tone(330, 'sine', 0.14, 0.09, 0.08); },
+    rotate()  { noise(0.03, 0.12, 1300); tone(520, 'triangle', 0.02, 0.04); },
+    power()   { [220, 330, 440, 660].forEach((f, i) => tone(f, 'sawtooth', 0.12, 0.035, i * 0.05)); },
+    zap()     { noise(0.25, 0.45, 3500, 'highpass'); tone(90, 'sawtooth', 0.3, 0.16); },
+    swipe()   { tone(1320, 'square', 0.05, 0.05); tone(1760, 'square', 0.06, 0.05, 0.05); },
+    alert()   { [0, 0.3].forEach((d) => { tone(880, 'square', 0.14, 0.05, d); tone(660, 'square', 0.14, 0.05, d + 0.14); }); },
+    event()   { tone(440, 'triangle', 0.1, 0.06); tone(330, 'triangle', 0.16, 0.06, 0.1); },
+    steps()   { [0, 0.35, 0.7].forEach((d) => { noise(0.08, 0.3, 160, 'lowpass', d); tone(60, 'sine', 0.1, 0.15, d); }); },
   };
 
   function setEnabled(on) {

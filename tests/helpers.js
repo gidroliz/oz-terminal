@@ -20,6 +20,8 @@ function apiHandlers() {
     leaderboard: require('../api/leaderboard'),
     name: require('../api/name'),
     health: require('../api/health'),
+    event: require('../api/event'),
+    admin: require('../api/admin'),
   };
 }
 

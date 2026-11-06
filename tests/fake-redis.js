@@ -6,9 +6,11 @@ function createFakeRedis() {
   const exp = new Map();     // время истечения ключей
   const zsets = new Map();   // key → Map(member → score)
   const hashes = new Map();  // key → Map(field → value)
+  const sets = new Map();    // key → Set (и для PFADD/PFCOUNT — точный подсчёт вместо оценки)
 
   const alive = (k) => { if (exp.has(k) && exp.get(k) < Date.now()) { kv.delete(k); exp.delete(k); } return kv.has(k); };
   const z = (k) => { if (!zsets.has(k)) zsets.set(k, new Map()); return zsets.get(k); };
+  const st = (k) => { if (!sets.has(k)) sets.set(k, new Set()); return sets.get(k); };
   const h = (k) => { if (!hashes.has(k)) hashes.set(k, new Map()); return hashes.get(k); };
   const sorted = (k) => [...z(k).entries()].sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1)).map((e) => e[0]);
   const slice = (arr, a, b) => { a = Number(a); b = Number(b); if (b < 0) b = arr.length + b; return arr.slice(a, b + 1); };
@@ -35,6 +37,13 @@ function createFakeRedis() {
       case 'PING': return 'PONG';
       case 'HLEN': return h(a[0]).size;
       case 'HDEL': return h(a[0]).delete(a[1]) ? 1 : 0;
+      case 'HINCRBY': { const v = (Number(h(a[0]).get(a[1])) || 0) + Number(a[2]); h(a[0]).set(a[1], String(v)); return v; }
+      case 'HGETALL': return [...h(a[0]).entries()].flat();
+      case 'SADD': case 'PFADD': { const s = st(a[0]); const n = s.size; a.slice(1).forEach((x) => s.add(x)); return s.size - n; }
+      case 'SREM': return st(a[0]).delete(a[1]) ? 1 : 0;
+      case 'SISMEMBER': return st(a[0]).has(a[1]) ? 1 : 0;
+      case 'SMEMBERS': return [...st(a[0])];
+      case 'PFCOUNT': return st(a[0]).size;
       default: throw new Error('fake redis: unsupported ' + c);
     }
   };

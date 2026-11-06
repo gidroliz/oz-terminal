@@ -4,11 +4,22 @@
 const redis = require('./redis');
 
 const MODES = {
-  easy:    { stages: 3, minMs: 8000 },
-  normal:  { stages: 5, minMs: 15000 },
-  hard:    { stages: 5, minMs: 15000 },
-  alarm:   { stages: 5, minMs: 15000 },
+  easy:    { stages: 5, minMs: 12000 },
+  normal:  { stages: 8, minMs: 25000 },
+  hard:    { stages: 8, minMs: 25000 },
+  alarm:   { stages: 8, minMs: 25000 },
   endless: { endless: true, msPerStage: 2500 },
+};
+
+// Модификаторы: бонус в процентах к итоговому времени (как в script.js)
+const MODS = { noscan: 10, onepick: 15, fragile: 10, noreserve: 10, chaos: 5, blind: 10 };
+const MOD_CAP = 40;
+
+// Ключи таблиц. Версия 2 — с сейфами, щитками и картами (этапов стало больше)
+const KEY = {
+  lb: (mode) => `lb2:${mode}`,
+  info: (mode) => `lbinfo2:${mode}`,
+  banned: 'banned',
 };
 
 const RUN_TTL = 24 * 3600;      // жетон взлома живёт сутки
@@ -56,9 +67,26 @@ function checkResult(mode, r, wallMs) {
   return null;
 }
 
-// Сортировка: обычные режимы — меньше время лучше; бесконечный — больше этапов, потом меньше время
-function scoreOf(mode, r) {
-  return MODES[mode].endless ? Number(r.stages) * 1e8 - Math.min(Number(r.time), 99999999) : Number(r.time);
+// Список модификаторов из запроса: только известные, без повторов. null — если прислано что-то не то
+function cleanMods(raw) {
+  if (raw == null) return [];
+  if (!Array.isArray(raw) || raw.length > Object.keys(MODS).length) return null;
+  const out = [];
+  for (const m of raw) {
+    if (typeof m !== 'string' || !MODS[m] || out.includes(m)) return null;
+    out.push(m);
+  }
+  return out.sort();
+}
+
+const modBonus = (mods) => Math.min(MOD_CAP, mods.reduce((a, m) => a + MODS[m], 0));
+const adjTime = (time, mods) => Math.round(Math.floor(Number(time)) * (1 - modBonus(mods) / 100));
+
+// Сортировка: обычные режимы — меньше время лучше; бесконечный — больше этапов, потом меньше время.
+// Время берётся с учётом бонуса модификаторов.
+function scoreOf(mode, r, mods = []) {
+  const time = adjTime(r.time, mods);
+  return MODES[mode].endless ? Number(r.stages) * 1e8 - Math.min(time, 99999999) : time;
 }
 
 // Ограничение частоты запросов с одного адреса
@@ -69,4 +97,4 @@ async function rateLimit(kind, ip, limit, windowSec) {
   return n <= limit;
 }
 
-module.exports = { MODES, RUN_TTL, TOP, cleanName, validId, checkResult, scoreOf, rateLimit };
+module.exports = { MODES, MODS, KEY, RUN_TTL, TOP, cleanName, validId, checkResult, cleanMods, modBonus, adjTime, scoreOf, rateLimit };

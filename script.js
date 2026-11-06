@@ -8,25 +8,31 @@
 // trap — часть скобок оказывается ловушкой
 const L = (tol, kind = 'normal') => ({ type: 'lock', tol, kind });
 const T = (len, count, kind = 'normal') => ({ type: 'term', len, count, kind });
+// Мини-игры: safe — сейф, wire — щиток, card — ключ-карта; lvl — сложность 1–3
+const M = (type, lvl) => ({ type, lvl });
 
-const NORMAL_STAGES = [L(10), T(6, 12, 'hint'), L(6.5, 'rusty'), T(7, 14, 'shuffle'), L(5, 'double')];
+const NORMAL_STAGES = [L(10), T(6, 12, 'hint'), M('safe', 2), L(6.5, 'rusty'), M('wire', 2), T(7, 14, 'shuffle'), M('card', 2), L(5, 'double')];
 
 const DIFFS = {
-  easy:    { picks: 3, scanners: 2, wearRate: 55, stages: [L(14), T(5, 10), L(9)] },
+  easy:    { picks: 3, scanners: 2, wearRate: 55, stages: [L(14), T(5, 10), M('wire', 1), M('safe', 1), L(9)] },
   normal:  { picks: 2, scanners: 1, wearRate: 75, stages: NORMAL_STAGES },
-  hard:    { picks: 1, scanners: 0, wearRate: 100, stages: [L(7, 'rusty'), T(7, 14, 'trap'), L(5, 'float'), T(8, 16, 'shuffle'), L(3, 'double')] },
-  alarm:   { picks: 2, scanners: 1, wearRate: 75, stages: NORMAL_STAGES, timeLimit: 150000, timeBonus: 15000 },
+  hard:    { picks: 1, scanners: 0, wearRate: 100, stages: [L(7, 'rusty'), T(7, 14, 'trap'), M('safe', 3), L(5, 'float'), M('wire', 3), T(8, 16, 'shuffle'), M('card', 3), L(3, 'double')] },
+  alarm:   { picks: 2, scanners: 1, wearRate: 75, stages: NORMAL_STAGES, timeLimit: 210000, timeBonus: 15000 },
   endless: { picks: 2, scanners: 1, wearRate: 75, endless: true },
 };
 const modeName = (id) => t('mode.' + id);
 
 const LOCK_KINDS = ['normal', 'rusty', 'double', 'float'];
 const TERM_KINDS = ['normal', 'hint', 'shuffle', 'trap'];
+const ODD_SLOTS = ['term', 'safe', 'term', 'wire', 'term', 'card'];
 
+// Бесконечный режим: замки на чётных местах, между ними — терминалы и мини-игры
 function endlessStage(n) {
   const k = Math.floor(n / 2);
   const pick = (arr) => (n < 4 ? 'normal' : arr[Math.floor(Math.random() * arr.length)]);
   if (n % 2 === 0) return L(Math.max(1.8, Math.round((12 - k * 1.4) * 10) / 10), pick(LOCK_KINDS));
+  const slot = ODD_SLOTS[k % ODD_SLOTS.length];
+  if (slot !== 'term') return M(slot, Math.min(3, 1 + Math.floor(k / 4)));
   return T(Math.min(8, 5 + Math.floor(k / 2)), Math.min(16, 10 + k), pick(TERM_KINDS));
 }
 
@@ -49,6 +55,9 @@ const CFG = {
   STAR_LOCK_SEC: 25,
   STAR_TERM_SEC: 50,
   STAR_WEAR: 35,
+  STAR_MG_SEC: 45,
+  MG_LOCKOUT: 8,
+  EVENTS: true,
 };
 
 // Апгрейды бесконечного режима
@@ -60,7 +69,39 @@ const ACHIEVEMENTS = [
   { id: 'erudite' }, { id: 'brute' }, { id: 'veteran' }, { id: 'archivist' }, { id: 'polyglot' },
   { id: 'oneshot', hidden: true }, { id: 'cleaner', hidden: true }, { id: 'sapper', hidden: true },
   { id: 'analyst', hidden: true }, { id: 'night', hidden: true },
+  { id: 'safecracker' }, { id: 'electrician' }, { id: 'swiper' }, { id: 'daredevil' },
+  { id: 'shadow', hidden: true }, { id: 'darkhand', hidden: true },
 ];
+
+// Модификаторы взлома: усложняют игру и уменьшают итоговое время (бонус в процентах)
+const MODS = { noscan: 10, onepick: 15, fragile: 10, noreserve: 10, chaos: 5, blind: 10 };
+const MOD_CAP = 40;
+const modBonus = (mods) => Math.min(MOD_CAP, (mods || []).reduce((a, m) => a + (MODS[m] || 0), 0));
+const adjTime = (ms, mods) => Math.round(ms * (1 - modBonus(mods) / 100));
+const hasMod = (m) => S.mods.includes(m);
+
+// Внешний вид: темы и отмычки открываются достижениями
+const THEMES = [
+  { id: 'green', sw: '#33ff33' }, { id: 'amber', sw: '#ffb000' }, { id: 'white', sw: '#e8f4ff' }, { id: 'cyan', sw: '#33e0ff' },
+  { id: 'red', sw: '#ff5a46', ach: 'alarm' }, { id: 'gold', sw: '#ffd75a', ach: 'perfect' }, { id: 'violet', sw: '#c58cff', ach: 'night' },
+];
+const PICK_SKINS = [
+  { id: 'steel', rgb: [175, 182, 172] },
+  { id: 'brass', rgb: [214, 170, 86], ach: 'first' },
+  { id: 'copper', rgb: [205, 112, 70], ach: 'rust' },
+  { id: 'titan', rgb: [140, 165, 200], ach: 'ghost' },
+  { id: 'bone', rgb: [232, 224, 200], ach: 'safecracker' },
+  { id: 'gold', rgb: [255, 205, 60], ach: 'master' },
+  { id: 'neon', rgb: null, ach: 'endless10' },
+];
+const cosmeticOpen = (c) => !c.ach || !!P.ach[c.ach];
+const rewardOf = (achId) => {
+  const th = THEMES.find((x) => x.ach === achId);
+  if (th) return t('reward.theme', { name: t('theme.' + th.id) });
+  const pk = PICK_SKINS.find((x) => x.ach === achId);
+  if (pk) return t('reward.pick', { name: t('skin.' + pk.id) });
+  return '';
+};
 
 // ═══════════════════════════════════════════════
 // ХРАНИЛИЩЕ
@@ -87,7 +128,7 @@ const P = Object.assign(emptyProfile(), loadJSON(PROFILE_KEY, {}));
 function saveProfile() { localStorage.setItem(PROFILE_KEY, JSON.stringify(P)); }
 
 const SETTINGS = Object.assign(
-  { volume: 80, vibro: true, crt: true, typing: true, large: false, theme: 'green', lang: LANG },
+  { volume: 80, vibro: true, crt: true, typing: true, large: false, theme: 'green', pick: 'steel', lang: LANG, stats: navigator.doNotTrack !== '1' },
   loadJSON(SETTINGS_KEY, {}),
 );
 function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(SETTINGS)); }
@@ -97,8 +138,9 @@ function unlock(id) {
   P.ach[id] = Date.now();
   saveProfile();
   const name = t(`ach.${id}.name`);
-  toast(t('toast.ach', { name }));
-  log(t('log.ach', { name }), 'good');
+  const reward = rewardOf(id);
+  toast(t('toast.ach', { name }) + (reward ? ' · ' + reward : ''));
+  log(t('log.ach', { name }) + (reward ? ' ' + reward : ''), 'good');
   Sound.good();
   return true;
 }
@@ -150,18 +192,27 @@ const S = {
   timeLeft: 0,
   st: { t0: 0, broken: 0, wear: 0, jams: 0, lockouts: 0 }, // показатели текущего этапа
   runToken: null, // жетон сервера для таблицы рекордов
+  mg: null,       // состояние мини-игры
+  mods: [],       // модификаторы взлома
+  event: null,    // идущее случайное событие
+  eventAt: 0,     // когда случится следующее
+  lbPlace: null,  // место в таблице после отправки результата
   stats: { broken: 0, right: 0, wrong: 0, lockouts: 0, scans: 0 },
   journal: [],
 };
 if (!DIFFS[S.diff]) S.diff = 'normal';
 let chosenDiff = S.diff;
+let chosenMods = loadJSON('oz.mods', []).filter((m) => MODS[m]);
 
 const cfg = () => DIFFS[S.diff];
 const stageCfg = () => S.stages[S.stage];
-const isLock = () => { const st = stageCfg(); return !st || st.type === 'lock'; };
+const stType = () => { const st = stageCfg(); return st ? st.type : 'lock'; };
+const isLock = () => stType() === 'lock';
+const isTerm = () => stType() === 'term';
+const isMg = () => MiniGames.TYPES.includes(stType());
 const lockKind = () => (stageCfg() && stageCfg().kind) || 'normal';
 const tol = () => stageCfg().tol + (S.ups.touch || 0) * 1.5;
-const wearRate = () => cfg().wearRate * (lockKind() === 'rusty' ? 2 : 1) * Math.pow(0.75, S.ups.durable || 0);
+const wearRate = () => cfg().wearRate * (lockKind() === 'rusty' ? 2 : 1) * (hasMod('fragile') ? 1.6 : 1) * Math.pow(0.75, S.ups.durable || 0);
 
 function ensureStages(upto) {
   if (!cfg().endless) return;
@@ -171,7 +222,7 @@ function ensureStages(upto) {
 function stageLabel(i) {
   const st = S.stages;
   const n = st.slice(0, i + 1).filter((s) => s.type === st[i].type).length;
-  return t(st[i].type === 'lock' ? 'stage.lock' : 'stage.term', { n });
+  return t('stage.' + st[i].type, { n });
 }
 
 function protectionName(v) {
@@ -207,6 +258,7 @@ const pauseBtn = $('pauseBtn');
 const lockArea = $('lockArea');
 const lockView = $('lockView');
 const termView = $('termView');
+const mgView = $('mgView');
 const actionPanel = $('actionPanel');
 const qOverlay = $('questionOverlay');
 const modalTitle = $('modalTitle');
@@ -266,6 +318,10 @@ function updateBadges() {
     from = Math.max(0, S.stage - 2);
     to = from + 4;
     ensureStages(to);
+  } else if (S.stages.length > 5) {
+    // Длинный режим: окно из 5 этапов вокруг текущего
+    from = Math.max(0, Math.min(S.stage - 2, S.stages.length - 5));
+    to = from + 4;
   }
   levelIndicator.innerHTML = '';
   for (let i = from; i <= to; i++) {
@@ -284,9 +340,9 @@ function updateBadges() {
   }
   const st = stageCfg();
   const prefix = cfg().endless ? t('title.stagePrefix', { n: S.stage + 1 }) : '';
-  lvlTitle.textContent = st.type === 'lock'
-    ? `[ ${prefix}${stageLabel(S.stage)}: ${protectionName(st.tol)} ]`
-    : `[ ${prefix}${t('title.term', { n: stageLabel(S.stage).split(' ')[1], len: st.len })} ]`;
+  if (st.type === 'lock') lvlTitle.textContent = `[ ${prefix}${stageLabel(S.stage)}: ${protectionName(st.tol)} ]`;
+  else if (st.type === 'term') lvlTitle.textContent = `[ ${prefix}${t('title.term', { n: stageLabel(S.stage).split(' ')[1], len: st.len })} ]`;
+  else lvlTitle.textContent = `[ ${prefix}${stageLabel(S.stage)}: ${S.mg ? MiniGames.title(S.mg) : ''} ]`;
   updateKindTag();
 }
 
@@ -351,21 +407,24 @@ function blocked() {
 }
 
 function canScanNow() {
-  if (blocked() || S.scanners <= 0) return false;
+  if (blocked() || S.scanners <= 0 || (S.event && S.event.id === 'glitch')) return false;
   if (isLock()) return !S.scan && S.picks > 0;
-  return S.termLockLeft <= 0 && Terminal.canScan();
+  if (S.termLockLeft > 0) return false;
+  return isTerm() ? Terminal.canScan() : MiniGames.canScan();
 }
 
 function updateButtons() {
   const b = blocked();
   hackBtn.disabled = b || S.picks <= 0 || !isLock();
   const cd = Math.ceil(S.cooldownLeft / 1000);
-  getPinBtn.disabled = b || cd > 0;
-  getPinBtn.textContent = cd > 0 ? t('btn.cooldown', { n: cd }) : t('btn.reserve');
+  const noRes = reserveOff();
+  getPinBtn.disabled = b || cd > 0 || noRes;
+  getPinBtn.textContent = noRes ? t('btn.reserveOff') : cd > 0 ? t('btn.cooldown', { n: cd }) : t('btn.reserve');
   getPinBtn.classList.toggle('attention', !getPinBtn.disabled && S.picks <= 0 && isLock() && !cfg().endless);
   scanBtn.disabled = !canScanNow();
   canvas.classList.toggle('disabled-canvas', b || S.picks <= 0);
   Terminal.setEnabled(!b && S.termLockLeft <= 0);
+  MiniGames.setEnabled(!b && S.termLockLeft <= 0);
   pauseBtn.disabled = !S.started || S.finished;
 
   if (S.started && !S.finished && S.picks <= 0 && !S.modalOpen) {
@@ -384,6 +443,12 @@ function fmtLong(ms) {
   const m = Math.floor(ms / 60000);
   const h = Math.floor(m / 60);
   return h > 0 ? t('time.hm', { h, m: m % 60 }) : t('time.ms', { m, s: Math.floor(ms / 1000) % 60 });
+}
+
+// Резерв недоступен: модификатор «без резерва» или нечего выдавать
+function reserveOff() {
+  if (hasMod('noreserve')) return true;
+  return hasMod('noscan') && hasMod('onepick') && !cfg().endless;
 }
 
 function updateTimer() {
@@ -476,9 +541,25 @@ function tutorialForStage() {
   if (isLock() && !Tutorial.seen.drag) {
     Tutorial.dragFrom = S.angle;
     Tutorial.show('drag', canvas, t('tut.drag'));
-  } else if (!isLock() && !Tutorial.seen.term1) {
+  } else if (isTerm() && !Tutorial.seen.term1) {
     Tutorial.show('term1', termView, t('tut.term1'));
   }
+}
+
+// Первая встреча с мини-игрой: короткая подсказка (один раз, даже без обучения)
+const MG_SEEN_KEY = 'oz.mgseen';
+function mgIntro() {
+  if (!isMg()) return;
+  const seen = loadJSON(MG_SEEN_KEY, {});
+  const type = stType();
+  if (seen[type]) return;
+  seen[type] = 1;
+  localStorage.setItem(MG_SEEN_KEY, JSON.stringify(seen));
+  const was = Tutorial.active;
+  Tutorial.active = true;
+  Tutorial.seen['mg_' + type] = false;
+  Tutorial.show('mg_' + type, mgView, t('tut.' + type), true);
+  Tutorial.active = was;
 }
 
 // ═══════════════════════════════════════════════
@@ -510,11 +591,23 @@ function enterStage(fresh) {
       newTarget();
     }
     S.term = null;
-  } else if (fresh || !S.term) {
-    S.term = createTerm();
-    S.termLockLeft = 0;
-    S.scan = null;
+    S.mg = null;
+  } else if (isTerm()) {
+    S.mg = null;
+    if (fresh || !S.term) {
+      S.term = createTerm();
+      S.termLockLeft = 0;
+      S.scan = null;
+    }
+  } else {
+    S.term = null;
+    if (fresh || !S.mg || S.mg.type !== stType()) {
+      S.mg = MiniGames.create(stType(), stageCfg().lvl);
+      S.termLockLeft = 0;
+      S.scan = null;
+    }
   }
+  if (fresh) planEvent();
   renderStage();
 }
 
@@ -534,13 +627,26 @@ function createTerm() {
 function renderStage() {
   const lock = isLock();
   lockView.hidden = !lock;
-  termView.hidden = lock;
+  termView.hidden = !isTerm();
+  mgView.hidden = !isMg();
+  if (!isTerm()) termView.innerHTML = '';
+  if (!isMg()) mgView.innerHTML = '';
   actionPanel.classList.toggle('hidden', !lock);
   setHackIdle();
   hackBar.style.width = '0%';
   setLamp('');
   if (lock) {
     resizeCanvas();
+  } else if (isMg()) {
+    MiniGames.setBlind(hasMod('blind'));
+    MiniGames.mount(mgView, S.mg, {
+      sound: (n, a) => Sound[n] && Sound[n](a),
+      vibrate,
+      onSolved: mgSolved,
+      onLockout: mgLockout,
+      onChange: () => { updateButtons(); saveRun(); },
+    });
+    MiniGames.showLock(S.termLockLeft / 1000);
   } else {
     Terminal.mount(termView, S.term, {
       sound: (n) => Sound[n] && Sound[n](),
@@ -561,6 +667,7 @@ function calcStars() {
     const limit = CFG.STAR_LOCK_SEC * (lockKind() === 'double' ? 1.6 : 1);
     return [sec <= limit, S.st.broken === 0, S.st.wear < CFG.STAR_WEAR];
   }
+  if (isMg()) return [sec <= CFG.STAR_MG_SEC * (S.mg && S.mg.lvl === 3 ? 1.3 : 1), S.st.lockouts === 0, MiniGames.clean(S.mg)];
   return [sec <= CFG.STAR_TERM_SEC, S.st.lockouts === 0, (S.term ? S.term.wrong : 9) <= 1];
 }
 
@@ -618,8 +725,11 @@ function nextStage() {
   if (S.stage + 1 < S.stages.length) {
     S.stage++;
     enterStage(true);
-    log(isLock() ? t('log.lockStage', { name: stageLabel(S.stage), tol: tol() }) : t('log.termStage', { len: stageCfg().len }));
+    log(isLock() ? t('log.lockStage', { name: stageLabel(S.stage), tol: tol() })
+      : isTerm() ? t('log.termStage', { len: stageCfg().len }) : t('log.mgStage', { name: stageLabel(S.stage) }));
     tutorialForStage();
+    mgIntro();
+    track('stage', { mode: S.diff, n: S.stage });
     saveRun();
   } else {
     endGame(true);
@@ -721,6 +831,7 @@ function unlockLock() {
   P.locks++;
   if (S.st.jams === 0) unlock('oneshot');
   if (lockKind() === 'rusty' && S.st.broken === 0) unlock('rust');
+  if (S.event && S.event.id === 'blackout') unlock('darkhand');
   Tutorial.hide();
   completeStage('log.lockOpened', { name: stageLabel(S.stage) });
 }
@@ -748,7 +859,14 @@ function termSolved(term) {
   completeStage('log.termHacked');
 }
 
-function termLockout() {
+function termLockout() { stageLockout(CFG.TERM_LOCKOUT, 'log.termLocked'); }
+
+function mgLockout() {
+  Sound.zap();
+  stageLockout(CFG.MG_LOCKOUT, 'log.mgLocked');
+}
+
+function stageLockout(sec, msgKey) {
   S.stats.lockouts++;
   S.st.lockouts++;
   P.lockouts++;
@@ -770,20 +888,37 @@ function termLockout() {
     log(t('log.termLockedPick', { n: S.picks }), 'bad');
     S.termLockLeft = CFG.ENDLESS_LOCKOUT * 1000;
   } else {
-    S.termLockLeft = CFG.TERM_LOCKOUT * 1000;
-    log(t('log.termLocked', { n: CFG.TERM_LOCKOUT }), 'bad');
+    S.termLockLeft = sec * 1000;
+    log(t(msgKey, { n: sec }), 'bad');
   }
-  Terminal.showLock(S.termLockLeft / 1000);
+  showStageLock();
   updateButtons();
   saveRun();
 }
 
+function showStageLock() {
+  if (isMg()) MiniGames.showLock(S.termLockLeft / 1000);
+  else Terminal.showLock(S.termLockLeft / 1000);
+}
+
 function termReboot() {
-  S.term = createTerm();
   S.termLockLeft = 0;
+  if (isMg()) { S.mg = MiniGames.create(stType(), stageCfg().lvl); log(t('log.mgReboot')); }
+  else { S.term = createTerm(); log(t('log.termReboot')); }
   renderStage();
-  log(t('log.termReboot'));
   saveRun();
+}
+
+// ─── Мини-игры ───────────────────────────────
+function mgSolved(g) {
+  Sound.granted();
+  vibrate(40);
+  P.mgs = (P.mgs || 0) + 1;
+  if (g.type === 'safe' && g.errors === 0) unlock('safecracker');
+  if (g.type === 'wire' && g.moves <= g.par) unlock('electrician');
+  if (g.type === 'card' && g.errors === 0) unlock('swiper');
+  saveProfile();
+  completeStage('log.mgDone', { name: stageLabel(S.stage) });
 }
 
 // ─── Сканер ──────────────────────────────────
@@ -799,6 +934,9 @@ function useScanner() {
     a = Math.max(-CFG.PICK_LIMIT, Math.min(CFG.PICK_LIMIT - width, a));
     S.scan = [a, a + width];
     log(t('log.scanLock'), 'good');
+  } else if (isMg()) {
+    if (!MiniGames.scan()) return;
+    log(t('log.scanMg'), 'good');
   } else {
     if (!Terminal.scan()) return;
     if (S.ups.sharpscan) Terminal.scan();
@@ -820,7 +958,7 @@ scanBtn.addEventListener('click', useScanner);
 function openUpgrade() {
   S.modalOpen = true;
   updateButtons();
-  const pool = UPGRADES.slice();
+  const pool = UPGRADES.filter((id) => !((id === 'scans' || id === 'sharpscan') && hasMod('noscan')) && !(id === 'picks' && hasMod('onepick')));
   const offer = [];
   while (offer.length < 3 && pool.length) offer.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   const box = $('upgradeOpts');
@@ -886,9 +1024,11 @@ function update(dt) {
 
   if (S.termLockLeft > 0) {
     S.termLockLeft -= dt * 1000;
-    Terminal.showLock(S.termLockLeft / 1000);
+    showStageLock();
     if (S.termLockLeft <= 0) termReboot();
   }
+
+  updateEvent(dt);
 
   if (!isLock()) return;
 
@@ -937,9 +1077,9 @@ function update(dt) {
   if (S.flash < 0) S.flash = Math.min(0, S.flash + dt * 2);
 
   const pct = Math.min(100, S.rot / CFG.OPEN_ANGLE * 100);
-  hackBar.style.width = pct + '%';
+  hackBar.style.width = (hasMod('blind') ? 0 : pct) + '%';
   hackBar.classList.toggle('jam', S.jammed);
-  if (S.turning) { hackTxt.textContent = t('btn.cylinder', { n: Math.floor(pct) }); hackTxt.dataset.state = 'turn'; }
+  if (S.turning) { hackTxt.textContent = hasMod('blind') ? t('btn.cylinderBlind') : t('btn.cylinder', { n: Math.floor(pct) }); hackTxt.dataset.state = 'turn'; }
   else if (!S.advancing && hackTxt.dataset.state === 'turn' && S.rot <= 0) { setHackIdle(); hackTxt.dataset.state = 'idle'; }
 }
 
@@ -994,8 +1134,8 @@ function drawFrame(now) {
     ctx.stroke();
   }
 
-  // Шкала
-  for (let a = -90; a <= 90; a += 5) {
+  // Шкала (в режиме «вслепую» её нет)
+  for (let a = -90; a <= 90 && !hasMod('blind'); a += 5) {
     const rad = (a - 90) * Math.PI / 180;
     const big = a % 30 === 0;
     const len = big ? 10 : a % 15 === 0 ? 6 : 3;
@@ -1065,13 +1205,18 @@ function drawFrame(now) {
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 6;
     ctx.beginPath(); ctx.moveTo(1, 2); ctx.lineTo(1, -len + 2); ctx.stroke();
     const w = Math.min(1, S.wear / 100);
-    ctx.strokeStyle = `rgb(${Math.round(175 + 70 * w)}, ${Math.round(182 - 85 * w)}, ${Math.round(172 - 110 * w)})`;
+    const skin = PICK_SKINS.find((x) => x.id === SETTINGS.pick) || PICK_SKINS[0];
+    const base = skin.rgb || THEME.pri;
+    const hot = [245, 97, 62];
+    ctx.strokeStyle = `rgb(${base.map((v, i) => Math.round(v + (hot[i] - v) * w)).join(',')})`;
+    if (!skin.rgb) { ctx.shadowColor = pri(1, 0.9); ctx.shadowBlur = 8; }
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(0, broken ? -len * 0.45 : -len + 6);
     if (!broken) ctx.arc(5, -len + 6, 5, Math.PI, Math.PI * 1.9, false);
     ctx.stroke();
+    ctx.shadowBlur = 0;
     ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(-1, -4); ctx.lineTo(-1, broken ? -len * 0.4 : -len + 10); ctx.stroke();
     ctx.restore();
@@ -1090,6 +1235,7 @@ function loop(now) {
   lastT = now;
   update(dt);
   if (!lockView.hidden && S.tab === 'hack') drawFrame(now);
+  if (!mgView.hidden && S.tab === 'hack') MiniGames.frame(dt, now, S.started && !blocked() && S.termLockLeft <= 0);
   requestAnimationFrame(loop);
 }
 
@@ -1145,6 +1291,10 @@ window.addEventListener('keydown', (e) => {
   if (e.target.matches && e.target.matches('input')) return;
   const n = parseInt(e.key, 10);
 
+  if ($('shareOverlay').classList.contains('visible')) {
+    if (e.key === 'Escape') $('shareCloseBtn').click();
+    return;
+  }
   if (upOverlay.classList.contains('visible')) {
     const ub = $('upgradeOpts').querySelectorAll('.upgrade-btn');
     if (n >= 1 && n <= ub.length) ub[n - 1].click();
@@ -1176,12 +1326,18 @@ window.addEventListener('keydown', (e) => {
   if (k === 'm' || k === 'ь') { toggleSound(); return; }
   if (e.key === 'Escape' || k === 'p' || k === 'з') { pauseGame(); return; }
   if (S.tab !== 'hack') return;
+  if (S.event && S.event.id === 'patrol' && S.event.watch && !blocked()) caught();
   if ((k === 's' || k === 'ы') && !scanBtn.disabled) { useScanner(); return; }
   if ((k === 'r' || k === 'к') && !getPinBtn.disabled) { getPinBtn.click(); return; }
 
-  if (!isLock()) {
+  if (isTerm()) {
     AudioEngine.init();
     Terminal.handleKey(e);
+    return;
+  }
+  if (isMg()) {
+    AudioEngine.init();
+    MiniGames.handleKey(e);
     return;
   }
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -1211,7 +1367,8 @@ function pauseGame() {
   S.paused = true;
   const st = cfg().endless ? t('pause.stage', { n: S.stage + 1 }) : t('pause.stageOf', { n: S.stage + 1, total: S.stages.length });
   const time = cfg().timeLimit ? t('pause.left', { time: fmtTime(S.timeLeft) }) : fmtTime(S.elapsed);
-  $('pauseInfo').textContent = `${modeName(S.diff)} · ${st} · ${time}`;
+  const mods = S.mods.length ? ` · ⚑ ${S.mods.map((m) => t('mod.' + m)).join(', ')}` : '';
+  $('pauseInfo').textContent = `${modeName(S.diff)} · ${st} · ${time}${mods}`;
   pauseOverlay.classList.add('visible');
   Terminal.setEnabled(false);
   updateButtons();
@@ -1231,6 +1388,7 @@ pauseBtn.addEventListener('click', () => { AudioEngine.init(); Sound.click(); pa
 $('resumeBtn').addEventListener('click', resumeGame);
 $('pauseCfgBtn').addEventListener('click', () => { resumeGame(); switchTab('cfg'); });
 $('pauseMenuBtn').addEventListener('click', () => {
+  track('quit', { mode: S.diff, n: S.stage });
   saveRun();
   S.paused = false;
   pauseOverlay.classList.remove('visible');
@@ -1262,7 +1420,12 @@ function shuffle(arr) {
 }
 
 function grantReward(kind) {
-  if (kind === 'pick') {
+  if (kind === 'repair') {
+    S.wear = 0;
+    updateWear();
+    log(t('log.reserveRepair'), 'good');
+    modalRes.textContent = t('q.gotRepair');
+  } else if (kind === 'pick') {
     S.picks++;
     if (S.picks === 1) S.wear = 0;
     updateWear();
@@ -1315,8 +1478,12 @@ function openQuestion() {
         P.right++;
         modalRes.classList.add('good');
         if (P.right >= 10) unlock('erudite');
+        const only = hasMod('noscan') ? 'pick' : hasMod('onepick') ? 'scan' : null;
         if (cfg().endless) {
-          grantReward('scan');
+          grantReward(hasMod('noscan') ? 'repair' : 'scan');
+          showContinue();
+        } else if (only) {
+          grantReward(only);
           showContinue();
         } else {
           modalRes.textContent = t('q.choose');
@@ -1365,7 +1532,7 @@ function closeQuestion() {
 getPinBtn.addEventListener('click', () => {
   AudioEngine.init();
   Sound.click();
-  if (!blocked() && S.cooldownLeft <= 0) openQuestion();
+  if (!blocked() && S.cooldownLeft <= 0 && !reserveOff()) openQuestion();
 });
 modalCont.addEventListener('click', closeQuestion);
 
@@ -1374,7 +1541,7 @@ modalCont.addEventListener('click', closeQuestion);
 // ═══════════════════════════════════════════════
 const RUN_FIELDS = ['diff', 'stages', 'stage', 'done', 'stars', 'cleared', 'picks', 'scanners', 'scan', 'ups', 'pendingUpgrade',
   'wear', 'angle', 'target', 'targetBase', 'floatPhase', 'pinsLeft', 'term', 'termLockLeft', 'usedQs', 'cooldownLeft',
-  'elapsed', 'timeLeft', 'st', 'stats', 'runToken'];
+  'elapsed', 'timeLeft', 'st', 'stats', 'runToken', 'mg', 'mods'];
 
 function saveRun() {
   if (!S.started || S.finished) return;
@@ -1424,6 +1591,11 @@ function applyRun(r) {
   S.stats = Object.assign({ broken: 0, right: 0, wrong: 0, lockouts: 0, scans: 0 }, r.stats);
   S.journal = r.journal || [];
   S.runToken = r.runToken || null;
+  S.mg = r.mg || null;
+  S.mods = Array.isArray(r.mods) ? r.mods.filter((m) => MODS[m]) : [];
+  S.event = null;
+  S.eventAt = 0;
+  clearEventFx();
   S.advancing = false;
   ensureStages(S.stage + 2);
   updatePicks(false);
@@ -1463,7 +1635,11 @@ function resetGame() {
     wear: 0, angle: 0, rot: 0, turning: false, jammed: false, advancing: false, flash: 0,
     term: null, termLockLeft: 0, cooldownLeft: 0, elapsed: 0, timeLeft: m.timeLimit || 0,
     stats: { broken: 0, right: 0, wrong: 0, lockouts: 0, scans: 0 }, journal: [], runToken: null,
+    mg: null, mods: chosenMods.slice(), event: null, eventAt: 0, lbPlace: null,
   });
+  if (hasMod('noscan')) S.scanners = 0;
+  if (hasMod('onepick')) S.picks = 1;
+  clearEventFx();
   ensureStages(4);
   enterStage(true);
   updatePicks(false);
@@ -1509,6 +1685,7 @@ function beginPlaying() {
   switchTab('hack');
   updateButtons();
   if (isLock()) resizeCanvas();
+  MiniGames.resize();
   if (S.pendingUpgrade) { S.advancing = true; openUpgrade(); }
 }
 
@@ -1520,6 +1697,8 @@ function startNew() {
   Tutorial.start();
   beginPlaying();
   log(t('log.start', { mode: modeName(S.diff), picks: S.picks, scans: S.scanners }));
+  if (S.mods.length) log(t('log.mods', { list: S.mods.map((m) => t('mod.' + m)).join(', '), n: modBonus(S.mods) }), 'bad');
+  track('start', { mode: S.diff, n: S.mods.length });
   if (cfg().timeLimit) log(t('log.guards', { time: fmtTime(cfg().timeLimit) }), 'bad');
   log(t('log.lockStage', { name: stageLabel(0), tol: tol() }));
   tutorialForStage();
@@ -1533,6 +1712,7 @@ function continueRun() {
   Tutorial.seen = (r && r.tutorial) || {};
   beginPlaying();
   log(t('log.restored'));
+  mgIntro();
 }
 
 function bestText(id) {
@@ -1572,12 +1752,18 @@ function endGame(win) {
   S.finished = true;
   S.paused = false;
   turnStop();
+  S.event = null;
+  S.eventAt = 0;
+  clearEventFx();
   clearRun();
   Tutorial.finish();
   updateButtons();
 
   const m = cfg();
   const time = S.elapsed;
+  const adj = adjTime(time, S.mods);
+  const bonus = modBonus(S.mods);
+  const timeCell = fmtTime(adj) + (bonus ? ` <small>−${bonus}%</small>` : '');
   const starsGot = S.stars.reduce((a, s) => a + (s ? s.filter(Boolean).length : 0), 0);
   const starsMax = S.cleared * 3;
   let isRecord = false;
@@ -1588,12 +1774,12 @@ function endGame(win) {
 
   if (m.endless) {
     const prev = P.best[S.diff];
-    isRecord = S.cleared > 0 && (!prev || S.cleared > prev.stages || (S.cleared === prev.stages && time < prev.time));
-    if (isRecord) P.best[S.diff] = { stages: S.cleared, time, broken: S.stats.broken };
+    isRecord = S.cleared > 0 && (!prev || S.cleared > prev.stages || (S.cleared === prev.stages && adj < prev.time));
+    if (isRecord) P.best[S.diff] = { stages: S.cleared, time: adj, broken: S.stats.broken, mods: S.mods.slice() };
     rank = endlessRank(S.cleared);
     title = t('end.session');
     lines = [t('end.noPicks'), t('end.stagesDone', { n: S.cleared }), t('end.rank', { rank: t('rank.' + rank) })];
-    cells = [[t('end.cellStages'), S.cleared + (isRecord ? ' ★' : '')], [t('end.cellTime'), fmtTime(time)], [t('end.cellStars'), `${starsGot}/${starsMax}`]];
+    cells = [[t('end.cellStages'), S.cleared + (isRecord ? ' ★' : '')], [t('end.cellTime'), timeCell], [t('end.cellStars'), `${starsGot}/${starsMax}`]];
     Sound.lockout();
   } else if (!win) {
     rank = 'fail';
@@ -1604,19 +1790,19 @@ function endGame(win) {
     vibrate([200, 100, 200]);
   } else {
     const prev = P.best[S.diff];
-    isRecord = !prev || time < prev.time;
-    if (isRecord) P.best[S.diff] = { time, broken: S.stats.broken };
+    isRecord = !prev || adj < prev.time;
+    if (isRecord) P.best[S.diff] = { time: adj, broken: S.stats.broken, mods: S.mods.slice() };
     rank = rankFor(S.stats.broken, S.stats.wrong, S.stats.lockouts);
     title = t('end.granted');
     lines = [t('end.allHacked'), t('end.mode', { mode: modeName(S.diff) }), t('end.rank', { rank: t('rank.' + rank) })];
     if (m.timeLimit) lines.splice(1, 0, t('end.guardsLeft', { time: fmtTime(S.timeLeft) }));
-    cells = [[t('end.cellTime'), fmtTime(time) + (isRecord ? ' ★' : '')], [t('end.cellBroken'), S.stats.broken], [t('end.cellStars'), `${starsGot}/${starsMax}`]];
+    cells = [[t('end.cellTime'), timeCell + (isRecord ? ' ★' : '')], [t('end.cellBroken'), S.stats.broken], [t('end.cellStars'), `${starsGot}/${starsMax}`]];
     Sound.win();
   }
 
   const counts = win || m.endless;
   if (counts) P.finished++;
-  P.history.unshift({ d: Date.now(), diff: S.diff, time, broken: S.stats.broken, rank, stages: S.cleared, stars: starsGot, lost: !win && !m.endless });
+  P.history.unshift({ d: Date.now(), diff: S.diff, time: adj, broken: S.stats.broken, rank, stages: S.cleared, stars: starsGot, lost: !win && !m.endless });
   P.history = P.history.slice(0, 20);
   saveProfile();
 
@@ -1625,9 +1811,10 @@ function endGame(win) {
     S.stats.broken === 0 && 'ghost',
     S.diff === 'hard' && 'master',
     S.diff === 'alarm' && 'alarm',
-    (S.diff === 'normal' || S.diff === 'hard') && time < 120000 && 'speed',
+    (S.diff === 'normal' || S.diff === 'hard') && adj < 240000 && 'speed',
     starsMax > 0 && starsGot === starsMax && 'perfect',
     LANG === 'en' && 'polyglot',
+    !m.endless && S.mods.length >= 3 && 'daredevil',
   ] : []).concat([counts && P.finished >= 10 && 'veteran']).filter((id) => id && unlock(id));
 
   const lost = !win && !m.endless;
@@ -1643,11 +1830,17 @@ function endGame(win) {
   });
   $('stats').innerHTML = cells.map(([k, v]) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`).join('');
   $('stageStars').innerHTML = S.stages.map((st, i) => (S.done[i] ? `<span title="${stageLabel(i)}">${starStr(S.stars[i])}</span>` : '')).join('');
-  $('newAch').innerHTML = gained.map((id) => `<div>★ ${t(`ach.${id}.name`)} — ${t(`ach.${id}.desc`)}</div>`).join('');
-  log(`${title}. ${m.endless ? t('end.logStages', { n: S.cleared }) : t('end.logTime', { time: fmtTime(time) })}${isRecord ? ' ' + t('end.logRecord') : ''}`, lost ? 'bad' : 'good');
+  $('newAch').innerHTML = gained.map((id) => `<div>★ ${t(`ach.${id}.name`)} — ${t(`ach.${id}.desc`)}${rewardOf(id) ? ` <i>${rewardOf(id)}</i>` : ''}</div>`).join('');
+  log(`${title}. ${m.endless ? t('end.logStages', { n: S.cleared }) : t('end.logTime', { time: fmtTime(adj) })}${isRecord ? ' ' + t('end.logRecord') : ''}`, lost ? 'bad' : 'good');
 
+  SHARE.result = {
+    mode: S.diff, win: !!win, lost, endless: !!m.endless, time: adj, raw: time, bonus, mods: S.mods.slice(),
+    stages: S.cleared, total: S.stages.length, stars: starsGot, starsMax, broken: S.stats.broken, rank, title, d: Date.now(),
+  };
+  $('shareBtn').hidden = false;
   winOverlay.classList.add('visible');
   startRain(lost);
+  track(lost ? 'fail' : 'finish', { mode: S.diff, n: S.cleared });
   lbAfterGame(win || m.endless, starsGot);
 }
 
@@ -1656,6 +1849,7 @@ continueBtn.addEventListener('click', continueRun);
 restartBtn.addEventListener('click', () => {
   Sound.click();
   winOverlay.classList.remove('visible');
+  $('shareOverlay').classList.remove('visible');
   stopRain();
   showStartScreen();
 });
@@ -1729,6 +1923,10 @@ soundBtn.addEventListener('click', toggleSound);
 // ═══════════════════════════════════════════════
 function applySettings() {
   const html = document.documentElement;
+  const th = THEMES.find((x) => x.id === SETTINGS.theme);
+  if (!th || !cosmeticOpen(th)) SETTINGS.theme = 'green';
+  const sk = PICK_SKINS.find((x) => x.id === SETTINGS.pick);
+  if (!sk || !cosmeticOpen(sk)) SETTINGS.pick = 'steel';
   if (SETTINGS.theme && SETTINGS.theme !== 'green') html.dataset.theme = SETTINGS.theme;
   else delete html.dataset.theme;
   html.classList.toggle('large', !!SETTINGS.large);
@@ -1737,6 +1935,7 @@ function applySettings() {
   Terminal.setTyping(!!SETTINGS.typing);
   readTheme();
   if (isLock()) resizeCanvas();
+  MiniGames.resize();
 }
 
 function syncSettingsUI() {
@@ -1746,7 +1945,8 @@ function syncSettingsUI() {
   $('setCrt').checked = SETTINGS.crt;
   $('setTyping').checked = SETTINGS.typing;
   $('setLarge').checked = SETTINGS.large;
-  document.querySelectorAll('.theme-btn').forEach((b) => b.classList.toggle('active', b.dataset.theme === SETTINGS.theme));
+  $('setStats').checked = !!SETTINGS.stats;
+  buildCosmetics();
   document.querySelectorAll('.lang-btn').forEach((b) => b.classList.toggle('active', b.dataset.lang === LANG));
 }
 
@@ -1757,6 +1957,7 @@ function setLanguage(lang) {
   saveSettings();
   applyStaticI18n();
   buildTopics();
+  buildMods();
   updateSoundBtn();
   showBest();
   syncSettingsUI();
@@ -1765,7 +1966,8 @@ function setLanguage(lang) {
     updateBadges();
     updateButtons();
     if (!S.turning) setHackIdle();
-    if (!isLock() && S.term) renderStage();
+    if (!isLock()) renderStage();
+    paintEventBar();
   }
   if (!continueBtn.hidden) {
     const saved = loadRun();
@@ -1791,7 +1993,7 @@ $('setVolume').addEventListener('input', (e) => {
   saveSettings();
 });
 $('setVolume').addEventListener('change', () => Sound.click());
-[['setVibro', 'vibro'], ['setCrt', 'crt'], ['setTyping', 'typing'], ['setLarge', 'large']].forEach(([id, key]) => {
+[['setVibro', 'vibro'], ['setCrt', 'crt'], ['setTyping', 'typing'], ['setLarge', 'large'], ['setStats', 'stats']].forEach(([id, key]) => {
   $(id).addEventListener('change', (e) => {
     SETTINGS[key] = e.target.checked;
     saveSettings();
@@ -1801,14 +2003,6 @@ $('setVolume').addEventListener('change', () => Sound.click());
     if (key === 'vibro' && SETTINGS.vibro) vibrate(40);
   });
 });
-document.querySelectorAll('.theme-btn').forEach((b) => b.addEventListener('click', () => {
-  SETTINGS.theme = b.dataset.theme;
-  saveSettings();
-  applySettings();
-  syncSettingsUI();
-  AudioEngine.init();
-  Sound.key();
-}));
 $('tutorialResetBtn').addEventListener('click', () => {
   localStorage.removeItem(TUTORIAL_KEY);
   Sound.click();
@@ -1836,6 +2030,7 @@ function switchTab(tab, silent) {
     lastT = performance.now();
     if (!S.started && !S.finished) showStartScreen();
     else if (isLock()) resizeCanvas();
+    else MiniGames.resize();
   }
 }
 
@@ -1860,6 +2055,7 @@ function renderStat() {
     ['stat.finished', P.finished],
     ['stat.locks', P.locks],
     ['stat.terms', P.terms],
+    ['stat.mgs', P.mgs || 0],
     ['stat.stars', P.stars],
     ['stat.broken', P.broken],
     ['stat.scans', P.scans],
@@ -1883,7 +2079,7 @@ function renderStat() {
       return `
       <div class="ach-item ${has ? 'got' : ''} ${secret ? 'secret' : ''}">
         <span class="ach-icon">${has ? '★' : secret ? '?' : '☆'}</span>
-        <span><b>${secret ? '???' : t(`ach.${a.id}.name`)}</b><br><small>${secret ? t('ach.hidden') : t(`ach.${a.id}.desc`)}</small></span>
+        <span><b>${secret ? '???' : t(`ach.${a.id}.name`)}</b><br><small>${secret ? t('ach.hidden') : t(`ach.${a.id}.desc`)}</small>${!secret && rewardOf(a.id) ? `<br><small class="ach-reward">${rewardOf(a.id)}</small>` : ''}</span>
       </div>`;
     }).join('')}
     </div>`;
@@ -2034,7 +2230,7 @@ function lbAfterGame(counts, stars) {
   if (!S.runToken) { lbBox(`<div class="muted">${t('end.lbUnavailable')}</div>`); return; }
   LB.pending = {
     token: S.runToken, mode: S.diff,
-    time: Math.round(S.elapsed), stages: S.cleared, broken: S.stats.broken, stars,
+    time: Math.round(S.elapsed), stages: S.cleared, broken: S.stats.broken, stars, mods: S.mods.slice(),
   };
   S.runToken = null;
   if (PLAYER.name) submitPending();
@@ -2073,6 +2269,8 @@ async function submitPending() {
   if (r.ok) {
     LB.pending = null;
     LB.data = null;
+    if (SHARE.result) SHARE.result.place = { rank: r.rank, total: r.total };
+    track('lb', { mode: SHARE.result ? SHARE.result.mode : S.diff });
     lbBox(`
       <div class="lb-place">${t('end.lbPlace', { rank: r.rank, total: r.total })}</div>
       <div class="muted">${t(r.best ? 'end.lbBest' : 'end.lbNotBest')}</div>
@@ -2098,8 +2296,10 @@ function openLbFromEnd() {
 }
 
 function lbResult(row, mode) {
-  if (DIFFS[mode].endless) return `${t('rec.stages', { n: row.stages })} <small>${fmtTime(row.time)}</small>`;
-  return fmtTime(row.time);
+  const mods = row.mods && row.mods.length
+    ? ` <small class="lb-mods" title="${esc(row.mods.map((x) => (MODS[x] ? t('mod.' + x) : x)).join(', '))}">⚑${row.mods.length}</small>` : '';
+  if (DIFFS[mode].endless) return `${t('rec.stages', { n: row.stages })} <small>${fmtTime(row.time)}</small>${mods}`;
+  return fmtTime(row.time) + mods;
 }
 
 async function renderTop() {
@@ -2162,6 +2362,376 @@ $('callsignForm').addEventListener('submit', async (e) => {
 });
 
 // ═══════════════════════════════════════════════
+// СЛУЧАЙНЫЕ СОБЫТИЯ
+// blackout — свет гаснет, виден только круг фонарика; patrol — шаги охраны: замри;
+// glitch — помехи, сканер не работает; stash — тайник; guards — охрана отвлеклась (+время)
+// ═══════════════════════════════════════════════
+const EVENT_CHANCE = { easy: 0.15, normal: 0.3, hard: 0.4, alarm: 0.35, endless: 0.3 };
+const EVENT_DUR = { blackout: 9000, patrol: 7000, glitch: 8000 };
+const PATROL_GRACE = 1500;
+const eventBar = $('eventBar');
+const hackPane = document.querySelector('.pane[data-pane="hack"]');
+
+function planEvent() {
+  S.eventAt = 0;
+  if (!CFG.EVENTS || S.stage < 1 || Tutorial.active) return;
+  let p = EVENT_CHANCE[S.diff] || 0.3;
+  if (hasMod('chaos')) p = Math.min(0.9, p * 2 + 0.2);
+  if (Math.random() < p) S.eventAt = S.elapsed + 3000 + Math.random() * 7000;
+}
+
+function pickEvent() {
+  const pool = ['blackout', 'blackout', 'patrol', 'patrol', 'glitch', 'stash'];
+  if (cfg().timeLimit) pool.push('guards');
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function updateEvent(dt) {
+  if (S.advancing || S.modalOpen) return;
+  if (!S.event && S.eventAt && S.elapsed >= S.eventAt) { S.eventAt = 0; startEvent(pickEvent()); return; }
+  const e = S.event;
+  if (!e) return;
+  e.left -= dt * 1000;
+  if (e.id === 'patrol') {
+    if (!e.watch && e.left < EVENT_DUR.patrol - PATROL_GRACE) { e.watch = true; hackPane.classList.add('ev-watch'); }
+    if (e.watch && S.turning) { caught(); return; }
+  }
+  if (e.left <= 0) { endEvent(true); return; }
+  paintEventBar();
+}
+
+function startEvent(id) {
+  if (id === 'stash') { stash(); return; }
+  if (id === 'guards') {
+    S.timeLeft += 20000;
+    toast(t('ev.guards'));
+    log(t('ev.guards'), 'good');
+    Sound.good();
+    return;
+  }
+  S.event = { id, left: EVENT_DUR[id], watch: false };
+  hackPane.classList.add('ev-' + id);
+  if (id === 'patrol') { Sound.steps(); vibrate([30, 60, 30]); } else Sound.event();
+  log(t('ev.' + id + '.log'), 'bad');
+  paintEventBar();
+  updateButtons();
+}
+
+function stash() {
+  let kind = Math.random() < 0.5 ? 'pick' : 'scan';
+  if (hasMod('noscan')) kind = 'pick';
+  if (hasMod('onepick')) kind = 'scan';
+  if (kind === 'pick' && S.picks >= CFG.ENDLESS_MAX_PICKS) kind = 'scan';
+  if (kind === 'scan' && hasMod('noscan')) kind = 'repair';
+  if (kind === 'pick') { S.picks++; if (S.picks === 1) S.wear = 0; } else if (kind === 'scan') S.scanners++; else S.wear = 0;
+  updatePicks(true);
+  updateWear();
+  updateButtons();
+  toast(t('ev.stash.' + kind));
+  log(t('ev.stash.' + kind), 'good');
+  Sound.good();
+  saveRun();
+}
+
+function caught() {
+  const e = S.event;
+  if (!e || e.id !== 'patrol' || e.caught) return;
+  e.caught = true;
+  Sound.alert();
+  vibrate([100, 50, 100]);
+  let msg;
+  if (cfg().timeLimit) { S.timeLeft = Math.max(1000, S.timeLeft - 20000); msg = t('ev.caught.time'); }
+  else if (S.scanners > 0) { S.scanners--; msg = t('ev.caught.scan'); }
+  else if (S.picks > 0 && isLock()) { S.wear = Math.min(95, S.wear + 35); msg = t('ev.caught.wear'); }
+  else { S.cooldownLeft = Math.max(S.cooldownLeft, 15000); msg = t('ev.caught.reserve'); }
+  toast(msg);
+  log(msg, 'bad');
+  updatePicks(true);
+  updateWear();
+  endEvent(false);
+  saveRun();
+}
+
+function endEvent(ok) {
+  const e = S.event;
+  if (!e) return;
+  S.event = null;
+  clearEventFx();
+  if (e.id === 'patrol' && ok && !e.caught) {
+    P.patrols = (P.patrols || 0) + 1;
+    saveProfile();
+    toast(t('ev.patrol.gone'));
+    log(t('ev.patrol.gone'), 'good');
+    if (P.patrols >= 3) unlock('shadow');
+  } else if (ok) log(t('ev.' + e.id + '.end'));
+  updateButtons();
+}
+
+function clearEventFx() {
+  ['ev-blackout', 'ev-patrol', 'ev-glitch', 'ev-watch'].forEach((c) => hackPane.classList.remove(c));
+  eventBar.hidden = true;
+}
+
+function paintEventBar() {
+  const e = S.event;
+  if (!e) { eventBar.hidden = true; return; }
+  eventBar.hidden = false;
+  eventBar.className = 'event-bar ev-' + e.id + (e.watch ? ' watch' : '');
+  const n = Math.ceil(e.left / 1000);
+  eventBar.textContent = e.id === 'patrol' && !e.watch ? t('ev.patrol.warn') : t('ev.' + e.id + '.bar', { n });
+}
+
+// Патруль слышит любое действие на экране взлома
+hackPane.addEventListener('pointerdown', () => {
+  if (S.event && S.event.id === 'patrol' && S.event.watch && !blocked()) caught();
+}, true);
+// Фонарик в темноте следует за пальцем или курсором
+hackPane.addEventListener('pointermove', (e) => {
+  if (!S.event || S.event.id !== 'blackout') return;
+  const r = hackPane.getBoundingClientRect();
+  hackPane.style.setProperty('--fx', (e.clientX - r.left) + 'px');
+  hackPane.style.setProperty('--fy', (e.clientY - r.top) + 'px');
+});
+
+// ═══════════════════════════════════════════════
+// МОДИФИКАТОРЫ (стартовый экран)
+// ═══════════════════════════════════════════════
+function buildMods() {
+  const box = $('mods');
+  box.innerHTML = '';
+  Object.keys(MODS).forEach((id) => {
+    const on = chosenMods.includes(id);
+    const b = document.createElement('button');
+    b.className = 'chip mod-btn' + (on ? ' active' : '');
+    b.dataset.mod = id;
+    b.textContent = t('mod.' + id);
+    b.title = t('mod.' + id + '.desc');
+    b.setAttribute('aria-pressed', on);
+    b.addEventListener('click', () => {
+      AudioEngine.init();
+      Sound.key();
+      chosenMods = on ? chosenMods.filter((x) => x !== id) : chosenMods.concat(id);
+      localStorage.setItem('oz.mods', JSON.stringify(chosenMods));
+      buildMods();
+      if (continueBtn.hidden) resetGame();
+    });
+    box.appendChild(b);
+  });
+  const bonus = modBonus(chosenMods);
+  $('modsDesc').textContent = bonus
+    ? t('mods.bonus', { n: bonus, list: chosenMods.map((m) => t('mod.' + m + '.desc')).join(' ') })
+    : t('mods.none');
+}
+
+// ═══════════════════════════════════════════════
+// ВНЕШНИЙ ВИД: темы и отмычки за достижения
+// ═══════════════════════════════════════════════
+function lockedToast(c) {
+  const a = ACHIEVEMENTS.find((x) => x.id === c.ach);
+  toast(t('toast.lockedBy', { name: a && a.hidden ? '???' : t(`ach.${c.ach}.name`) }));
+  Sound.denied();
+}
+
+function buildCosmetics() {
+  $('themes').innerHTML = THEMES.map((th) => {
+    const open = cosmeticOpen(th);
+    return `<button class="chip theme-btn${SETTINGS.theme === th.id ? ' active' : ''}${open ? '' : ' locked'}" data-theme="${th.id}" style="--sw:${th.sw}">${open ? '' : '🔒'}${t('theme.' + th.id)}</button>`;
+  }).join('');
+  $('skins').innerHTML = PICK_SKINS.map((sk) => {
+    const open = cosmeticOpen(sk);
+    const sw = sk.rgb ? `rgb(${sk.rgb.join(',')})` : 'var(--green-bright)';
+    return `<button class="chip theme-btn skin-btn${SETTINGS.pick === sk.id ? ' active' : ''}${open ? '' : ' locked'}" data-skin="${sk.id}" style="--sw:${sw}">${open ? '' : '🔒'}${t('skin.' + sk.id)}</button>`;
+  }).join('');
+}
+
+$('themes').addEventListener('click', (e) => {
+  const b = e.target.closest('.theme-btn');
+  if (!b) return;
+  AudioEngine.init();
+  const th = THEMES.find((x) => x.id === b.dataset.theme);
+  if (!cosmeticOpen(th)) { lockedToast(th); return; }
+  SETTINGS.theme = th.id;
+  saveSettings();
+  applySettings();
+  syncSettingsUI();
+  Sound.key();
+});
+$('skins').addEventListener('click', (e) => {
+  const b = e.target.closest('.skin-btn');
+  if (!b) return;
+  AudioEngine.init();
+  const sk = PICK_SKINS.find((x) => x.id === b.dataset.skin);
+  if (!cosmeticOpen(sk)) { lockedToast(sk); return; }
+  SETTINGS.pick = sk.id;
+  saveSettings();
+  syncSettingsUI();
+  Sound.key();
+});
+
+// ═══════════════════════════════════════════════
+// КАРТОЧКА РЕЗУЛЬТАТА
+// ═══════════════════════════════════════════════
+const SHARE = { result: null, blob: null, url: null };
+const SITE = 'oz-terminal.vercel.app';
+
+function shareText(r) {
+  const res = r.endless ? t('rec.stages', { n: r.stages }) : r.lost ? t('share.lostRes', { n: r.stages, total: r.total }) : fmtTime(r.time);
+  const place = r.place ? ' ' + t('share.place', { rank: r.place.rank, total: r.place.total }) : '';
+  return t(r.lost ? 'share.textLost' : 'share.text', { mode: modeName(r.mode), res, stars: r.stars, max: r.starsMax, place }) + ' https://' + SITE;
+}
+
+async function makeCard(r) {
+  try { await Promise.all([document.fonts.load('100px VT323'), document.fonts.load('40px "Ubuntu Mono"')]); } catch (e) {}
+  const W = 1080;
+  const H = 1350;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d');
+  const cs = getComputedStyle(document.documentElement);
+  const bg = cs.getPropertyValue('--bg-deep').trim() || '#020502';
+  const red = '#ff3b3b';
+  const main = r.lost ? red : pri(1);
+  g.fillStyle = bg;
+  g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W / 2, H * 0.42, 50, W / 2, H * 0.42, W * 0.8);
+  glow.addColorStop(0, pri(1, 0.12));
+  glow.addColorStop(1, pri(1, 0));
+  g.fillStyle = glow;
+  g.fillRect(0, 0, W, H);
+  g.strokeStyle = pri(1, 0.55);
+  g.lineWidth = 4;
+  g.strokeRect(40, 40, W - 80, H - 80);
+  g.strokeStyle = pri(1, 0.2);
+  g.lineWidth = 2;
+  g.strokeRect(56, 56, W - 112, H - 112);
+
+  const text = (s, y, size, color, font = 'VT323', blur = 18) => {
+    g.font = `${size}px ${font === 'VT323' ? 'VT323' : '"Ubuntu Mono"'}, monospace`;
+    g.textAlign = 'center';
+    g.textBaseline = 'alphabetic';
+    g.fillStyle = color;
+    g.shadowColor = color;
+    g.shadowBlur = blur;
+    let fit = size;
+    while (g.measureText(s).width > W - 160 && fit > 20) { fit -= 4; g.font = `${fit}px ${font === 'VT323' ? 'VT323' : '"Ubuntu Mono"'}, monospace`; }
+    g.fillText(s, W / 2, y);
+    g.shadowBlur = 0;
+  };
+
+  text('OZ-TERMINAL', 190, 130, pri(1), 'VT323', 28);
+  text(t('share.sub'), 245, 34, pri(0.7), 'mono', 0);
+  text(r.title, 360, 66, main, 'mono', 20);
+  text(t('share.mode', { mode: modeName(r.mode) }), 430, 40, pri(0.85), 'mono', 0);
+  const big = r.endless ? t('share.stagesBig', { n: r.stages }) : r.lost ? `${r.stages}/${r.total}` : fmtTime(r.time);
+  text(big, 650, 230, r.lost ? red : acc(1), 'VT323', 34);
+  if (r.bonus) text(t('share.mods', { n: r.bonus, list: r.mods.map((m) => t('mod.' + m)).join(' · ') }), 720, 30, acc(0.85), 'mono', 0);
+  text(`★ ${r.stars} / ${r.starsMax}`, 820, 72, pri(1), 'VT323', 16);
+
+  const cells = [
+    [t('end.cellBroken'), String(r.broken)],
+    [t('share.cellStages'), r.endless ? String(r.stages) : `${r.stages}/${r.total}`],
+    [t('share.cellPlace'), r.place ? `#${r.place.rank}` : '—'],
+  ];
+  const cw = 280;
+  const gap = 30;
+  const x0 = (W - cw * 3 - gap * 2) / 2;
+  cells.forEach(([k, v], i) => {
+    const x = x0 + i * (cw + gap);
+    g.strokeStyle = pri(1, 0.4);
+    g.lineWidth = 3;
+    g.strokeRect(x, 880, cw, 150);
+    g.font = '30px "Ubuntu Mono", monospace';
+    g.fillStyle = pri(0.7);
+    g.textAlign = 'center';
+    g.fillText(k, x + cw / 2, 930);
+    g.font = '80px VT323, monospace';
+    g.fillStyle = pri(1);
+    g.fillText(v, x + cw / 2, 1005);
+  });
+  if (!r.lost) text(t('end.rank', { rank: t('rank.' + r.rank) }), 1100, 38, pri(0.85), 'mono', 0);
+  text(t('share.cta'), 1185, 46, acc(1), 'mono', 10);
+  text(SITE, 1255, 52, pri(1), 'mono', 14);
+
+  // Строки развёртки, как на экране терминала
+  g.fillStyle = 'rgba(0,0,0,0.18)';
+  for (let y = 0; y < H; y += 4) g.fillRect(0, y, W, 2);
+  return c;
+}
+
+async function openShare() {
+  const r = SHARE.result;
+  if (!r) return;
+  AudioEngine.init();
+  Sound.click();
+  $('shareOverlay').classList.add('visible');
+  $('shareImg').removeAttribute('src');
+  $('shareNote').textContent = t('share.making');
+  const c = await makeCard(r);
+  const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+  if (SHARE.url) URL.revokeObjectURL(SHARE.url);
+  SHARE.blob = blob;
+  SHARE.url = URL.createObjectURL(blob);
+  $('shareImg').src = SHARE.url;
+  $('shareNote').textContent = shareText(r);
+  $('shareSendBtn').hidden = !navigator.share;
+}
+
+async function copyShareText() {
+  const txt = shareText(SHARE.result);
+  try { await navigator.clipboard.writeText(txt); toast(t('share.copied')); } catch (e) { toast(t('share.copyFail')); }
+}
+
+$('shareBtn').addEventListener('click', openShare);
+$('shareCloseBtn').addEventListener('click', () => { Sound.click(); $('shareOverlay').classList.remove('visible'); });
+$('shareSaveBtn').addEventListener('click', () => {
+  if (!SHARE.url) return;
+  const a = document.createElement('a');
+  a.href = SHARE.url;
+  a.download = 'oz-terminal-result.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  Sound.good();
+  track('share', { mode: SHARE.result.mode, n: 0 });
+});
+$('shareCopyBtn').addEventListener('click', () => { copyShareText(); track('share', { mode: SHARE.result.mode, n: 1 }); });
+$('shareSendBtn').addEventListener('click', async () => {
+  if (!SHARE.blob) return;
+  const text = shareText(SHARE.result);
+  const file = new File([SHARE.blob], 'oz-terminal-result.png', { type: 'image/png' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], text });
+    else await navigator.share({ text, url: 'https://' + SITE });
+    track('share', { mode: SHARE.result.mode, n: 2 });
+  } catch (e) {
+    if (e && e.name !== 'AbortError') copyShareText();
+  }
+});
+
+// ═══════════════════════════════════════════════
+// АНОНИМНАЯ СТАТИСТИКА (api/event): только счётчики, без личных данных
+// ═══════════════════════════════════════════════
+function track(e, data = {}) {
+  if (!SETTINGS.stats) return;
+  const body = JSON.stringify(Object.assign({ e, id: PLAYER.id }, data));
+  try {
+    if (navigator.sendBeacon && navigator.sendBeacon('api/event', new Blob([body], { type: 'application/json' }))) return;
+  } catch (err) {}
+  fetch('api/event', { method: 'POST', body, keepalive: true, headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+}
+
+// Vercel Web Analytics (просмотры страниц) — только на сайте, не локально
+function loadWebAnalytics() {
+  if (!SETTINGS.stats || !/^https?:$/.test(location.protocol) || /^(localhost|127\.|\[::1\]|0\.0\.0\.0)/.test(location.hostname)) return;
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  const sc = document.createElement('script');
+  sc.defer = true;
+  sc.src = '/_vercel/insights/script.js';
+  document.head.appendChild(sc);
+}
+
+// ═══════════════════════════════════════════════
 // ЭФФЕКТЫ
 // ═══════════════════════════════════════════════
 let bootTimer = null;
@@ -2217,13 +2787,16 @@ function stopRain() {
 // ═══════════════════════════════════════════════
 // ИНИЦИАЛИЗАЦИЯ
 // ═══════════════════════════════════════════════
-window.addEventListener('resize', () => { if (isLock()) resizeCanvas(); Tutorial.position(); });
+window.addEventListener('resize', () => { if (isLock()) resizeCanvas(); MiniGames.resize(); Tutorial.position(); });
 applyStaticI18n();
 applySettings();
 syncSettingsUI();
 selectDiff(S.diff);
 buildTopics();
+buildMods();
 updateSoundBtn();
 showStartScreen();
 runBoot();
 requestAnimationFrame(loop);
+track('visit');
+loadWebAnalytics();
