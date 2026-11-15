@@ -658,6 +658,9 @@ function renderStage() {
   }
   updateBadges();
   updateButtons();
+  lockArea.classList.remove('stage-in');
+  void lockArea.offsetWidth;
+  lockArea.classList.add('stage-in');
 }
 
 // Звёзды этапа: скорость, без поломок/блокировок, чистая работа
@@ -1096,137 +1099,11 @@ function resizeCanvas() {
 }
 
 function drawFrame(now) {
-  const scale = canvas.width / VIEW;
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
-  ctx.clearRect(0, 0, VIEW, VIEW);
-
-  const cx = VIEW / 2, cy = VIEW / 2, R = VIEW * 0.46;
-  const sx = (Math.random() - 0.5) * S.shake;
-  const sy = (Math.random() - 0.5) * S.shake;
-  const rotRad = S.rot * Math.PI / 180;
-  const flashCol = priLight(0.4 + Math.max(0, S.flash) * 0.6);
-  const kind = lockKind();
-
-  // Корпус (ржавый — с рыжими пятнами)
-  const body = ctx.createRadialGradient(cx, cy - 20, 10, cx, cy, R);
-  body.addColorStop(0, pri(0.12));
-  body.addColorStop(1, pri(0.035));
-  ctx.fillStyle = body;
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
-  if (kind === 'rusty') {
-    ctx.fillStyle = 'rgba(160,80,20,0.18)';
-    [[0.6, 2.2, 14], [0.5, 1.4, 10], [0.3, -0.4, 8], [0.75, -0.2, 12]].forEach(([d, ang, r]) => {
-      ctx.beginPath(); ctx.arc(cx + Math.cos(ang) * R * d, cy + Math.sin(ang) * R * d, r, 0, Math.PI * 2); ctx.fill();
-    });
-  }
-  ctx.strokeStyle = kind === 'rusty' ? 'rgba(170,95,35,0.8)' : pri(0.35); ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = pri(1, 0.08); ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(cx, cy, R - 7, 0, Math.PI * 2); ctx.stroke();
-
-  // Зона сканера
-  if (S.scan) {
-    const pulse = 0.35 + 0.2 * Math.sin(now / 250);
-    ctx.strokeStyle = acc(pulse);
-    ctx.lineWidth = 9;
-    ctx.beginPath();
-    ctx.arc(cx, cy, R - 15, (S.scan[0] - 90) * Math.PI / 180, (S.scan[1] - 90) * Math.PI / 180);
-    ctx.stroke();
-  }
-
-  // Шкала (в режиме «вслепую» её нет)
-  for (let a = -90; a <= 90 && !hasMod('blind'); a += 5) {
-    const rad = (a - 90) * Math.PI / 180;
-    const big = a % 30 === 0;
-    const len = big ? 10 : a % 15 === 0 ? 6 : 3;
-    ctx.strokeStyle = pri(1, big ? 0.45 : 0.2);
-    ctx.lineWidth = big ? 2 : 1;
-    ctx.beginPath();
-    ctx.moveTo(cx + (R - 10 - len) * Math.cos(rad), cy + (R - 10 - len) * Math.sin(rad));
-    ctx.lineTo(cx + (R - 10) * Math.cos(rad), cy + (R - 10) * Math.sin(rad));
-    ctx.stroke();
-  }
-
-  // Болты
-  ctx.fillStyle = pri(0.2);
-  ctx.strokeStyle = pri(0.42);
-  [45, 135].forEach((deg) => {
-    const r = deg * Math.PI / 180;
-    const bx = cx + (R - 16) * Math.cos(r), by = cy + (R - 16) * Math.sin(r);
-    ctx.beginPath(); ctx.arc(bx, by, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(bx - 3, by); ctx.lineTo(bx + 3, by); ctx.stroke();
+  const skin = PICK_SKINS.find((x) => x.id === SETTINGS.pick) || PICK_SKINS[0];
+  GFX.drawLock(ctx, now, {
+    rot: S.rot, angle: S.angle, shake: S.shake, flash: S.flash, jammed: S.jammed, wear: S.wear, picks: S.picks,
+    scan: S.scan, kind: lockKind(), pinsLeft: S.pinsLeft, blind: hasMod('blind'), skin: skin.rgb || null,
   });
-
-  // Индикатор штифтов двойного замка
-  if (kind === 'double') {
-    for (let i = 0; i < 2; i++) {
-      const on = i < 2 - S.pinsLeft;
-      ctx.fillStyle = on ? pri(1, 0.9) : pri(0.25);
-      ctx.beginPath(); ctx.arc(cx - 8 + i * 16, cy + R * 0.86, 4, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-
-  // Цилиндр
-  ctx.save();
-  ctx.translate(cx + sx * 0.4, cy + sy * 0.4);
-  ctx.rotate(rotRad);
-  const cylR = R * 0.5;
-  const cyl = ctx.createRadialGradient(-10, -10, 4, 0, 0, cylR);
-  cyl.addColorStop(0, pri(0.23));
-  cyl.addColorStop(1, pri(0.09));
-  ctx.fillStyle = cyl;
-  ctx.beginPath(); ctx.arc(0, 0, cylR, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = S.flash > 0 ? flashCol : pri(0.56);
-  ctx.lineWidth = 2.5; ctx.stroke();
-  ctx.strokeStyle = pri(1, 0.12); ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(0, 0, cylR - 6, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = pri(1, 0.5);
-  ctx.fillRect(-1.5, -cylR + 2, 3, 7);
-  ctx.fillStyle = '#010201';
-  ctx.beginPath();
-  ctx.arc(0, -6, 8, 0, Math.PI * 2);
-  ctx.moveTo(-4, -2); ctx.lineTo(4, -2); ctx.lineTo(6, 20); ctx.lineTo(-6, 20); ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#7d847a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(0, R * 0.62); ctx.lineTo(R * 0.3, R * 0.75); ctx.stroke();
-  ctx.strokeStyle = '#bcc2b8'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(-1, 16); ctx.lineTo(-1, R * 0.6); ctx.stroke();
-  ctx.restore();
-
-  // Отмычка
-  if (S.picks > 0 || S.flash < 0) {
-    ctx.save();
-    ctx.translate(cx + sx, cy - 6 + sy);
-    ctx.rotate(S.angle * Math.PI / 180 + (S.jammed ? (Math.random() - 0.5) * 0.03 * S.shake : 0));
-    const len = R * 0.92;
-    const broken = S.flash < 0;
-    ctx.globalAlpha = broken ? Math.max(0, 1 + S.flash * 2) : 1;
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 6;
-    ctx.beginPath(); ctx.moveTo(1, 2); ctx.lineTo(1, -len + 2); ctx.stroke();
-    const w = Math.min(1, S.wear / 100);
-    const skin = PICK_SKINS.find((x) => x.id === SETTINGS.pick) || PICK_SKINS[0];
-    const base = skin.rgb || THEME.pri;
-    const hot = [245, 97, 62];
-    ctx.strokeStyle = `rgb(${base.map((v, i) => Math.round(v + (hot[i] - v) * w)).join(',')})`;
-    if (!skin.rgb) { ctx.shadowColor = pri(1, 0.9); ctx.shadowBlur = 8; }
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, broken ? -len * 0.45 : -len + 6);
-    if (!broken) ctx.arc(5, -len + 6, 5, Math.PI, Math.PI * 1.9, false);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(-1, -4); ctx.lineTo(-1, broken ? -len * 0.4 : -len + 10); ctx.stroke();
-    ctx.restore();
-  }
-
-  if (S.flash > 0) {
-    ctx.strokeStyle = flashCol;
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(cx, cy, R - 2, 0, Math.PI * 2); ctx.stroke();
-  }
 }
 
 let lastT = performance.now();

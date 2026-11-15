@@ -162,6 +162,7 @@ const MiniGames = (() => {
     return { on, done: on.has(end) && !!(cur(s.tiles[end]) & 2) };
   }
 
+  let justRotated = -1;
   function wireRotate(i) {
     if (!G || G.type !== 'wire' || G.solved || !enabled) return;
     const tl = G.tiles[i];
@@ -169,6 +170,7 @@ const MiniGames = (() => {
     G.cur = i;
     if (tl.fixed) { sound('denied'); paintWire(); return; }
     tl.r = (tl.r + 1) % 4;
+    justRotated = i;
     G.moves++;
     sound('rotate');
     const p = wirePowered(G);
@@ -205,6 +207,7 @@ const MiniGames = (() => {
     if (G.beam >= a - 0.2 && G.beam <= b + 0.2) {
       G.got++;
       G.slow = false;
+      if (view && view.card) { view.card.classList.remove('hit'); void view.card.offsetWidth; view.card.classList.add('hit'); }
       sound('swipe');
       if (G.got >= G.need) { paintCard(); finish(); return; }
       G.speed *= 1.06;
@@ -360,71 +363,10 @@ const MiniGames = (() => {
   }
 
   function drawSafe(now) {
-    const c = view.ctx;
-    const s = view.canvas.width / DV;
-    c.setTransform(s, 0, 0, s, 0, 0);
-    c.clearRect(0, 0, DV, DV);
-    const cx = DV / 2;
-    const cy = DV / 2;
-    const R = 92;
-    const near = blind ? 0 : safeNear();
-    const g = c.createRadialGradient(cx, cy - 15, 8, cx, cy, R);
-    g.addColorStop(0, pri(0.14));
-    g.addColorStop(1, pri(0.04));
-    c.fillStyle = g;
-    c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = pri(0.4); c.lineWidth = 3; c.stroke();
-
-    const ang = (k) => ((k - G.pos) / SAFE.N) * Math.PI * 2 - Math.PI / 2;
-    if (G.hint && G.hint.idx === G.idx) {
-      c.strokeStyle = acc(0.35 + 0.2 * Math.sin(now / 250));
-      c.lineWidth = 8;
-      c.beginPath();
-      c.arc(cx, cy, R - 10, ang(G.hint.a - 0.5), ang(G.hint.b + 0.5));
-      c.stroke();
-    }
-    c.font = '13px "Ubuntu Mono", monospace';
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    for (let k = 0; k < SAFE.N; k++) {
-      const a = ang(k);
-      const big = k % 5 === 0;
-      const len = big ? 10 : 5;
-      c.strokeStyle = pri(1, big ? 0.6 : 0.28);
-      c.lineWidth = big ? 2 : 1;
-      c.beginPath();
-      c.moveTo(cx + Math.cos(a) * (R - 4), cy + Math.sin(a) * (R - 4));
-      c.lineTo(cx + Math.cos(a) * (R - 4 - len), cy + Math.sin(a) * (R - 4 - len));
-      c.stroke();
-      if (big) {
-        c.fillStyle = pri(1, 0.75);
-        c.fillText(String(k), cx + Math.cos(a) * (R - 25), cy + Math.sin(a) * (R - 25));
-      }
-    }
-    // Ручка
-    c.save();
-    c.translate(cx, cy);
-    c.rotate(-G.pos / SAFE.N * Math.PI * 2);
-    c.fillStyle = pri(0.2);
-    c.strokeStyle = pri(0.55);
-    c.lineWidth = 2;
-    c.beginPath(); c.arc(0, 0, 42, 0, Math.PI * 2); c.fill(); c.stroke();
-    for (let i = 0; i < 12; i++) {
-      const a = i / 12 * Math.PI * 2;
-      c.beginPath();
-      c.moveTo(Math.cos(a) * 34, Math.sin(a) * 34);
-      c.lineTo(Math.cos(a) * 42, Math.sin(a) * 42);
-      c.stroke();
-    }
-    c.fillStyle = pri(1, 0.6);
-    c.fillRect(-2, -40, 4, 12);
-    c.restore();
-    // Неподвижная метка сверху: светится, когда диск «отзывается»
-    const jit = near > 0 ? (Math.random() - 0.5) * near * 2 : 0;
-    c.fillStyle = near >= 0.999 ? priLight(1) : near > 0 ? acc(0.4 + near * 0.6) : pri(0.6);
-    c.beginPath();
-    c.moveTo(cx - 7 + jit, 1); c.lineTo(cx + 7 + jit, 1); c.lineTo(cx + jit, 13); c.closePath();
-    c.fill();
+    GFX.drawSafe(view.ctx, now, {
+      pos: G.pos, N: SAFE.N, near: blind ? 0 : safeNear(),
+      hint: G.hint && G.hint.idx === G.idx ? G.hint : null,
+    });
   }
 
   // Щиток: сетка кнопок с участками схемы
@@ -437,26 +379,32 @@ const MiniGames = (() => {
     paintWire();
   }
 
+  // Участок схемы: тёмный кабель-канал, жила и бегущие по ней импульсы
   function tileSvg(m, on) {
-    const ends = [[50, 0], [100, 50], [50, 100], [0, 50]];
-    const lines = ends.map(([x, y], k) => ((m >> k) & 1 ? `<line x1="50" y1="50" x2="${x}" y2="${y}"/>` : '')).join('');
-    return `<svg viewBox="0 0 100 100" class="${on ? 'on' : ''}">${lines}<circle cx="50" cy="50" r="9"/></svg>`;
+    const ends = [[50, -2], [102, 50], [50, 102], [-2, 50]];
+    const d = ends.map(([x, y], k) => ((m >> k) & 1 ? `M50 50L${x} ${y}` : '')).join('');
+    return `<svg viewBox="0 0 100 100" class="${on ? 'on' : ''}"><path class="cs" d="${d}"/><path class="ce" d="${d}"/><path class="ci" d="${d}"/>`
+      + `<circle class="nd" cx="50" cy="50" r="18"/><path class="wr" d="${d}"/><path class="fl" d="${d}"/><circle class="nc" cx="50" cy="50" r="8"/></svg>`;
   }
+
+  const ICO_BOLT = '<svg viewBox="0 0 16 16"><path d="M9.5.5 2.5 9h4l-1 6.5 7-8.5h-4z"/></svg>';
+  const ICO_LAMP = '<svg viewBox="0 0 16 16"><path d="M8 1a5 5 0 0 1 3 9v2H5v-2a5 5 0 0 1 3-9zM5.5 13h5v2h-5z"/></svg>';
 
   function paintWire() {
     if (!view || G.type !== 'wire') return;
     const p = wirePowered(G);
     let html = '';
     for (let y = 0; y < G.h; y++) {
-      html += `<span class="wire-src">${y === G.sr ? '⚡' : ''}</span>`;
+      html += `<span class="wire-src">${y === G.sr ? ICO_BOLT : ''}</span>`;
       for (let x = 0; x < G.w; x++) {
         const i = y * G.w + x;
         const tl = G.tiles[i];
-        html += `<button class="wt${tl.fixed ? ' fixed' : ''}${i === G.cur ? ' cur' : ''}" data-i="${i}">${tileSvg(cur(tl), p.on.has(i))}</button>`;
+        html += `<button class="wt${tl.fixed ? ' fixed' : ''}${i === G.cur ? ' cur' : ''}${i === justRotated ? ' rot' : ''}" data-i="${i}">${tileSvg(cur(tl), p.on.has(i))}</button>`;
       }
-      html += `<span class="wire-out${y === G.er && p.done ? ' lit' : ''}">${y === G.er ? '◉' : ''}</span>`;
+      html += `<span class="wire-out${y === G.er && p.done ? ' lit' : ''}">${y === G.er ? ICO_LAMP : ''}</span>`;
     }
     view.body.innerHTML = html;
+    justRotated = -1;
     const left = Math.max(0, G.budget - G.moves);
     view.status.innerHTML = `${t('mg.wire.moves', { n: left })}`;
     view.status.classList.toggle('warn', left <= 5);
@@ -465,11 +413,12 @@ const MiniGames = (() => {
   // Ключ-карта: дорожка из блоков и бегущий луч
   function mountCard() {
     view.body.innerHTML = `
-      <div class="card-strip">${Array.from({ length: CARD.seg }, (_, i) => `<i data-i="${i}"></i>`).join('')}<b class="card-beam"></b></div>
-      <div class="card-blocks"></div>`;
+      <div class="kc"><div class="kc-chip"></div><div class="kc-title">OZ ACCESS</div><div class="kc-id">LVL-0${G.lvl} · ${String(4096 + G.need * 977 + G.width * 131).padStart(5, '0')}</div><div class="card-blocks"></div><div class="kc-mag"></div></div>
+      <div class="card-strip">${Array.from({ length: CARD.seg }, (_, i) => `<i data-i="${i}"></i>`).join('')}<b class="card-beam"></b></div>`;
     view.strip = view.body.querySelector('.card-strip');
     view.beam = view.body.querySelector('.card-beam');
     view.blocks = view.body.querySelector('.card-blocks');
+    view.card = view.body.querySelector('.kc');
     view.cells = [...view.strip.querySelectorAll('i')];
     view.strip.addEventListener('pointerdown', (e) => { e.preventDefault(); cardPress(); });
     paintCard();
